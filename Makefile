@@ -2,7 +2,7 @@ IMAGE ?= ps5-ai-cli:rust1.95
 SDK_IMAGE ?= ps5-ai-cli:sdk
 ROOT := $(CURDIR)
 
-.PHONY: toolchain probe process-probe loader-probe rust-loader-probe log-reader inspect test codex-check codex-build upload-probe
+.PHONY: toolchain probe process-probe loader-probe rust-loader-probe network-probe log-reader inspect test codex-check codex-build upload-probe
 
 toolchain:
 	docker build --build-arg "PS5_SDK_IMAGE=$(SDK_IMAGE)" -t $(IMAGE) .
@@ -13,6 +13,9 @@ probe:
 
 process-probe:
 	docker run --rm --network none -v "$(ROOT):/work" $(IMAGE) tools/build-process-probe.sh
+
+network-probe:
+	docker run --rm --network none -v "$(ROOT):/work" $(IMAGE) tools/build-network-probe.sh
 
 loader-probe:
 	python3 tools/fetch-loader.py

@@ -15,6 +15,7 @@ This repository does not currently provide an interactive PS5 or browser interfa
 | Rust 1.95 runtime | Allocation, file I/O, threads, mutexes, Tokio timers and async TCP passed |
 | Codex 0.160.0 | Native version output and authenticated app-server initialization, account status and thread listing passed |
 | Native child loader | Rust FFI launch with an active Tokio runtime passed arguments, environment, working directory, standard streams, exit status and cancellation checks |
+| HTTPS diagnostic | Native curl/OpenSSL verified the login host and rejected self-signed and wrong-host certificates using supplied CA roots and temporary host-resolved addresses; native DNS failed |
 
 The child-loader result does not establish `std::process::Command` compatibility
 or working Codex shell tools. Versions and upstream hashes are recorded in
@@ -48,6 +49,8 @@ in memory-constrained Docker environments.
 - `make process-probe`, `make loader-probe` and `make rust-loader-probe` build
   development diagnostics for native process behavior.
 - `make log-reader` builds the temporary diagnostic log collector.
+- `make network-probe` builds a bounded DNS/HTTPS diagnostic. Supply a CA PEM
+  bundle at `build/network-probe-ca.pem` first; the build does not download roots.
 
 The custom target rebuilds Rust `std` for the FreeBSD 11 libc ABI, uses
 position-independent code and disables native ELF TLS. The SDK provides process
@@ -88,8 +91,10 @@ and does not install an autostart service.
 - Native PTY creation returns `ENOSYS`; a shell is not bundled.
 - Ordinary kernel execution rejects the tested SDK ELF. The separate child
   loader has not been integrated into Codex command execution.
-- Login, certificate trust, outbound HTTPS and complete agent execution have not
-  been verified on hardware.
+- Codex device login currently fails at hostname resolution. The native resolver
+  fails in the tested environment, and the expected system CA paths are absent.
+  Isolated curl/OpenSSL HTTPS checks passed with supplied roots and addresses;
+  this does not verify Codex login, token exchange or model requests.
 - The app-server uses capability-token authentication. Missing or incorrect
   tokens return HTTP 401; browser Origin requests return 403. A browser gateway
   and PS5 interface are not included.
