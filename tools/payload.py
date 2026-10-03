@@ -132,9 +132,11 @@ def main():
         name = f"{args.elf.stem}-{info['sha256'][:12]}.elf"
         if not re.fullmatch(r"[A-Za-z0-9_-]+\.elf", name):
             raise ValueError("Payload filename must contain only letters, numbers, underscores and dashes")
+        print("Checking the installed payload inventory...", flush=True)
         inventory = json.loads(manager_request(base, "/list_payloads", timeout=args.timeout))["payloads"]
         if any(Path(path).name == name for path in inventory):
             raise ValueError("Identical payload already installed; use Payload Manager to rerun it deliberately")
+        print(f"Uploading {name} ({len(data) / 1024 / 1024:.1f} MiB)...", flush=True)
         response = manager_request(
             base, "/manage:upload?" + urllib.parse.urlencode({"filename": name}),
             data=data, method="POST", headers={"Content-Type": "application/octet-stream"},
@@ -142,6 +144,7 @@ def main():
         )
         if response.strip() != b"OK":
             raise ValueError(f"Unexpected upload response: {response[:200]!r}")
+        print("Checking the completed upload...", flush=True)
         inventory = json.loads(manager_request(base, "/list_payloads", timeout=args.timeout))["payloads"]
         paths = [path for path in inventory if Path(path).name == name]
         if len(paths) != 1:
@@ -156,6 +159,7 @@ def main():
                     raise ValueError(f"Failed to remove recorded obsolete payload {Path(old).name}")
                 print(f"Removed superseded project payload: {Path(old).name}", flush=True)
         if args.run:
+            print("Launching the uploaded payload once...", flush=True)
             response = manager_request(base, "/loadpayload:" + urllib.parse.quote(paths[0], safe="/"),
                                        timeout=args.timeout)
             if response.strip() != b"OK":

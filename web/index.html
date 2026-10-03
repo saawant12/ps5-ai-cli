@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111315">
+  <title>PS5 AI CLI</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/xterm.css">
+  <link rel="stylesheet" href="/app.css">
+  <script src="/xterm.js" defer></script>
+  <script src="/addon-fit.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header><a href="/" class="brand"><span aria-hidden="true">&gt;_</span> PS5 AI CLI</a><span id="connection" role="status">Connecting</span><button id="disconnect" hidden>Disconnect</button></header>
+  <div id="fixture" class="notice" hidden>LOCAL TERMINAL TEST · Not running on PS5</div>
+  <div id="notice" class="notice" role="alert" hidden></div>
+  <main id="picker">
+    <div class="intro"><span class="eyebrow">ON YOUR CONSOLE</span><h1>Choose your CLI.</h1><p>Open it. Use it just as you would in a terminal.</p></div>
+    <div class="choices">
+      <button id="launch-codex" class="choice"><span class="cli-mark">&gt;_</span><span><strong>Codex</strong><small>OpenAI</small></span><span class="arrow" aria-hidden="true">↗</span></button>
+      <button class="choice" disabled><span class="cli-mark">✳</span><span><strong>Claude Code</strong><small>Not available yet</small></span></button>
+      <button class="choice" disabled><span class="cli-mark">△</span><span><strong>Antigravity</strong><small>Not available yet</small></span></button>
+      <button class="choice" disabled><span class="cli-mark">⌘</span><span><strong>Devin</strong><small>Not available yet</small></span></button>
+    </div>
+    <p class="footnote">Codex is the first native port. Other CLIs will follow.</p>
+  </main>
+  <main id="terminal-view" hidden>
+    <div class="terminal-bar"><strong>Codex</strong><span id="geometry"></span><button id="reconnect" hidden>Reconnect</button><button id="keyboard-button">Keyboard</button></div>
+    <div id="terminal" aria-label="Codex terminal"></div>
+    <div class="controller-help">D-pad Move · Use the Enter button below to confirm · Keyboard for text entry</div>
+    <div class="keys" aria-label="Terminal keys"><button data-key="esc">Esc</button><button data-key="tab">Tab</button><button data-key="up" aria-label="Up arrow">↑</button><button data-key="down" aria-label="Down arrow">↓</button><button data-key="left" aria-label="Left arrow">←</button><button data-key="right" aria-label="Right arrow">→</button><button data-key="interrupt">Ctrl+C</button><button data-key="enter">Enter</button></div>
+  </main>
+  <dialog id="pair-dialog" aria-labelledby="pair-title"><h2 id="pair-title">Connect to your PS5</h2><p>Enter the pairing code from the PS5 notification.</p><form id="pair-form"><label for="pair-code">Pairing code</label><input id="pair-code" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" autocomplete="off" required placeholder="00000000"><p id="pair-error" class="error" role="alert"></p><button type="submit" class="primary">Connect</button></form></dialog>
+  <dialog id="keyboard-dialog" aria-labelledby="keyboard-title"><h2 id="keyboard-title">Terminal keyboard</h2><textarea id="keyboard-text" aria-label="Text to type in terminal" rows="3" spellcheck="false"></textarea><div id="keyboard-grid" class="keyboard-grid"></div><div class="keyboard-actions"><button id="keyboard-close">Close</button><button id="keyboard-send" class="primary">Type text</button><button id="keyboard-enter">Enter ↵</button></div></dialog>
+</body>
+</html>

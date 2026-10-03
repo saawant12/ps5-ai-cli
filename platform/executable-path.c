@@ -40,6 +40,22 @@ invalid:
     return -1;
 }
 
+/* The terminal installer owns this stable runtime path. */
+int ps5_set_executable_path(const char *path) {
+    if (strcmp(path, "/data/ps5-ai-cli/runtime/codex.elf")) { errno = EINVAL; return -1; }
+    int fd = open(path, O_RDONLY | O_NOFOLLOW);
+    if (fd < 0) return -1;
+    unsigned char header[20]; struct stat info;
+    int valid = !fstat(fd, &info) && S_ISREG(info.st_mode) &&
+        read(fd, header, sizeof(header)) == sizeof(header) &&
+        !memcmp(header, "\177ELF\2\1", 6) && header[16] == 3 && header[17] == 0 &&
+        header[18] == 62 && header[19] == 0;
+    close(fd);
+    if (!valid) { errno = EINVAL; return -1; }
+    snprintf(ps5_executable_path, sizeof(ps5_executable_path), "%s", path);
+    return 0;
+}
+
 extern int __real_sysctl(const int *, u_int, void *, size_t *, const void *, size_t);
 int __wrap_sysctl(const int *name, u_int count, void *output, size_t *length,
                   const void *input, size_t input_length) {

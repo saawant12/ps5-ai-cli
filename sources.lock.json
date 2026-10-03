@@ -9,7 +9,8 @@
     "codex_service_initialization_verified": true,
     "codex_service_auth_verified": true,
     "native_elf_child_launch_verified": true,
-    "native_elf_child_launch_with_tokio_verified": true
+    "native_elf_child_launch_with_tokio_verified": true,
+    "codex_terminal_onboarding_verified": true
   },
   "codex": {
     "repository": "https://github.com/openai/codex.git",
@@ -20,7 +21,20 @@
   "sdk": {
     "repository": "https://github.com/ps5-payload-dev/sdk",
     "tag": "v0.43",
+    "url": "https://github.com/ps5-payload-dev/sdk/releases/download/v0.43/ps5-payload-sdk.zip",
     "sha256": "a9cc9929f21b2b2c5d5b309f3bab4997067c45281c0622cf4838b1aecba66fcb"
+  },
+  "openssl": {
+    "version": "3.5.2",
+    "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.2/openssl-3.5.2.tar.gz",
+    "sha256": "c53a47e5e441c930c3928cf7bf6fb00e5d129b630e0aa873b08258656e7345ec",
+    "license": "Apache-2.0"
+  },
+  "curl": {
+    "version": "8.18.0",
+    "url": "https://curl.se/download/curl-8.18.0.tar.xz",
+    "sha256": "40df79166e74aa20149365e11ee4c798a46ad57c34e4f68fd13100e2c9a91946",
+    "license": "curl"
   },
   "mio": {
     "version": "1.2.0",
@@ -45,6 +59,21 @@
     "patched_files": {
       "elfldr.c": "f3caaba6021d5a6db276f20b3677f8c68e37917cd450ac67a3e4077acdb9b4e7",
       "elfldr.h": "0d42802647d623cb04381d89727932a0df31720bd959d5f34f0ac0cff3f47ccc"
+    }
+  },
+  "ca_bundle": {
+    "url": "https://curl.se/ca/cacert-2026-09-25.pem",
+    "sha256": "a41b5d356aea97a529fe27e0f7316d2f9d946d75927476cf9cf1b90637d00505",
+    "license": "MPL-2.0"
+  },
+  "terminal_font": {
+    "repository": "https://github.com/JetBrains/JetBrainsMono",
+    "tag": "v2.304",
+    "license": "OFL-1.1",
+    "files": {
+      "web/fonts/JetBrainsMono-Regular.woff2": "a9cb1cd82332b23a47e3a1239d25d13c86d16c4220695e34b243effa999f45f2",
+      "web/fonts/JetBrainsMono-Bold.woff2": "c503cc5ec5f8b2c7666b7ecda1adf44bd45f2e6579b2eba0fc292150416588a2",
+      "LICENSES/JetBrainsMono-OFL.txt": "30f0c136e3c88e422d0791acd97238870f9054a9729bc34cf2ff0d4ed8cac4ad"
     }
   }
 }

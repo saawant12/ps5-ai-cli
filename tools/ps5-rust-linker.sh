@@ -15,9 +15,23 @@ for arg in "$@"; do
   esac
 done
 mapfile -t syscall_flags < /work/platform/syscalls.link
+entry=(/work/build/codex-version-entry.o)
+extra=()
+native=/work/build
+if [[ "${PS5_TERMINAL:-0}" == 1 ]]; then
+  native="${PS5_NATIVE_DIR:-/work/build}"
+  entry=("$native/terminal-entry.o")
+  for name in gateway http websocket native-terminal runtime-image trust-store; do
+    extra+=("$native/terminal-$name.o")
+  done
+  extra+=("$native/launcher-install.o" "$native/launcher-platform_ps5.o"
+    -Wl,--wrap=isatty -Wl,--wrap=tcgetattr -Wl,--wrap=tcsetattr -Wl,--wrap=tcflush -Wl,--wrap=ioctl
+    -L/opt/ps5-payload-sdk/target/user/homebrew/lib -lcrypto
+    -Wl,--push-state,--no-as-needed -lSceIpmi -Wl,--pop-state -lSceAppInstUtil)
+fi
 # rustc passes -nodefaultlibs, so name the native SDK imports explicitly.
-exec /opt/ps5-payload-sdk/bin/prospero-clang "${args[@]}" /work/build/ps5-compat.o \
-  /work/build/ps5-syscalls.o "${syscall_flags[@]}" \
-  /work/build/codex-version-entry.o -Wl,--wrap=main -Wl,--wrap=fcntl -Wl,--wrap=sysctl \
+exec /opt/ps5-payload-sdk/bin/prospero-clang "${args[@]}" "$native/ps5-compat.o" \
+  "$native/ps5-syscalls.o" "${syscall_flags[@]}" \
+  "${entry[@]}" "${extra[@]}" -Wl,--wrap=main -Wl,--wrap=fcntl -Wl,--wrap=sysctl \
   -Wl,--error-limit=0 \
   -ldl -lunwind -lc -lkernel_web -lSceLibcInternal -lSceNet

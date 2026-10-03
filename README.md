@@ -1,11 +1,21 @@
 # ps5-ai-cli
 
-Experimental native port of [OpenAI Codex](https://github.com/openai/codex) for
-jailbroken PlayStation 5 consoles.
+An experimental home for AI coding CLIs on jailbroken PlayStation 5 consoles,
+with a simple CLI picker and terminal access from the PS5, a computer or a phone.
+Choose an available CLI to open its own interface. The launcher does not manage
+conversations or replace the CLI's prompts, login or approvals.
+
+[OpenAI Codex](https://github.com/openai/codex) is the first native port and the
+focus of the initial beta. The project is intended to expand to **Claude Code,
+Antigravity, Devin, and other AI CLIs** in later versions. Those integrations
+are not available yet; this is a multi-CLI project with a Codex-first beta.
 
 **Development source only. There is no usable beta or ready-to-install app yet.**
 Account login, model replies and complete coding tasks have not been verified.
-This repository does not currently provide an interactive PS5 or browser interface.
+A terminal interface is under development. Desktop and phone-sized browser tests
+have exercised the actual Codex CLI through a host PTY. The same terminal bridge
+has also reached Codex's native onboarding screen on PS5. Account login and
+coding-tool execution remain unverified.
 
 ## Verified compatibility
 
@@ -14,6 +24,7 @@ This repository does not currently provide an interactive PS5 or browser interfa
 | Firmware and loader | PS5 13.60, Relapse / elfldr, Payload Manager v0.5.2 |
 | Rust 1.95 runtime | Allocation, file I/O, threads, mutexes, Tokio timers and async TCP passed |
 | Codex 0.160.0 | Native version output and authenticated app-server initialization, account status and thread listing passed |
+| Interactive terminal | Native Codex onboarding rendered through the PS5-hosted browser terminal; login and coding tools remain unverified |
 | Native child loader | Rust FFI launch with an active Tokio runtime passed arguments, environment, working directory, standard streams, exit status and cancellation checks |
 | HTTPS diagnostic | Native curl/OpenSSL verified the login host and rejected self-signed and wrong-host certificates using supplied CA roots and temporary host-resolved addresses; native DNS failed |
 
@@ -23,21 +34,24 @@ or working Codex shell tools. Versions and upstream hashes are recorded in
 
 ## Build
 
-The current build requires a locally supplied ARM64 Linux Docker image containing
-ps5-payload-sdk 0.43 at `/opt/ps5-payload-sdk`, LLVM 19, Python 3 and PS5 OpenSSL/curl
-libraries under the SDK's `target/user/homebrew` directory. The default base-image
-tag, `ps5-ai-cli:sdk`, is a local prerequisite, not a published Docker Hub image.
-A standalone SDK bootstrap is not included. Git and Python 3 are also required on
-the host.
+The tested host is ARM64 Linux through Docker. Install Docker, Git, Python 3,
+and Node.js/npm on the host. Build the SDK and Rust toolchain from their public
+sources, then fetch the pinned Codex source:
 
 ```sh
-make toolchain SDK_IMAGE=your-sdk-image:tag
+make sdk
+make toolchain
 python3 tools/fetch-codex.py
-make probe
-make test
-make codex-check
-make codex-build
+make terminal
 ```
+
+The SDK bootstrap verifies the archive hashes in `sources.lock.json`, installs
+LLVM 19 and cross-compiles OpenSSL/curl. No sibling repository or private Docker
+image is required. Downloads require internet access on the build machine;
+the console can remain offline for startup and terminal testing.
+
+Use `make terminal-release` for the optimized ELF. For development diagnostics,
+run `make probe`, `make test`, `make codex-check`, or `make codex-build`.
 
 Full Codex builds default to one compilation job. Avoid concurrent large builds
 in memory-constrained Docker environments.
@@ -60,6 +74,44 @@ changes are in `patches/`. Codex uses the resolution lock in `locks/codex/`.
 The tested app-server ELF was linked from captured Rust objects using
 `tools/relink-codex.py --service` and locally generated configuration. That helper
 is not a standalone reproducible service build.
+
+## Terminal development build
+
+`make terminal` embeds the offline xterm.js assets, certificate roots and PS5
+shortcut, then builds `build/ps5-ai-cli.elf` through a locked Cargo invocation.
+`make terminal-release` selects the optimized profile. Node.js/npm is required
+to install the pinned web packages. Optimized development builds have reached
+native onboarding; complete beta behavior has not yet passed hardware tests.
+
+`make terminal-dev` is an optional faster relink from the last captured Rust
+build. The normal `make terminal` path does not depend on those captured objects.
+
+The application uses title `PAIC00001`, HTTP port `8035`, and storage under
+`/data/ps5-ai-cli`. Its home-screen shortcut opens the local CLI picker. The
+installer preserves unrelated applications and refuses conflicting title files.
+The shortcut opens an already-running payload; reboot/autostart behavior is
+not yet verified. The shortcut pairs the console locally over loopback. Remote
+browsers pair using the code in the PS5 notification.
+
+The raw terminal bridge carries Codex input/output and window-size changes. It
+is not a general-purpose kernel PTY and does not implement cooked terminal
+input, shell job control, or the native command backend. Only Codex is selectable;
+other CLI ports are unavailable. Login and coding behavior belong to Codex.
+The terminal embeds JetBrains Mono for consistent offline text rendering.
+On the tested PS5 browser, the D-pad changes CLI selections and the on-screen
+**Enter** button works. **Physical X does not send Enter directly to the terminal**;
+activate the on-screen Enter button instead. This is a known beta limitation.
+
+Browsers exposing the standard Gamepad API also have mappings for X/Enter,
+Circle/Escape, Square/text entry, Triangle/Tab, and Options/toolbar focus. Face
+buttons act once per press. These mappings pass browser simulations, but that
+does not establish support in the PS5 browser. Normal keyboard typing and
+shortcuts pass host-browser checks; a keyboard attached directly to PS5 still
+needs hardware verification.
+
+The payload locates its own installed ELF by an embedded build marker in
+Payload Manager and copies it into its private runtime directory. Both grouped
+and per-upload Payload Manager directories are supported.
 
 ## Console diagnostics
 
@@ -88,24 +140,34 @@ and does not install an autostart service.
 
 ## Limitations
 
+- Changing the PS5 network settings can leave the web service unreachable while
+  its process remains running. Restart the PS5 AI CLI payload in Payload Manager
+  after changing Wi-Fi/LAN settings. Reopening the shortcut alone does not
+  restart the service; automatic network recovery is not yet implemented.
 - Native PTY creation returns `ENOSYS`; a shell is not bundled.
 - Ordinary kernel execution rejects the tested SDK ELF. The separate child
   loader has not been integrated into Codex command execution.
-- Codex device login currently fails at hostname resolution. The native resolver
-  fails in the tested environment, and the expected system CA paths are absent.
+- Codex device login failed at hostname resolution in the earlier connectivity
+  test, and the expected system CA paths were absent. The terminal build now
+  bundles certificate roots; end-to-end login remains unverified.
   Isolated curl/OpenSSL HTTPS checks passed with supplied roots and addresses;
   this does not verify Codex login, token exchange or model requests.
 - The app-server uses capability-token authentication. Missing or incorrect
   tokens return HTTP 401; browser Origin requests return 403. A browser gateway
-  and PS5 interface are not included.
+  and PS5 interface are under development.
 - PS5 keyring requests return Unsupported; upstream file and ephemeral auth
   stores remain available. PATH aliases are also unsupported.
 
 ## Validation
 
-`make test` runs ten local ELF-validation and payload-cleanup tests after checking
+`make test` runs local ELF-validation, payload-cleanup and launcher-isolation tests after checking
 the built Rust probe. The system-kernel ELF case also requires a built loader
 probe; it is skipped when that optional artifact is absent.
+
+`make terminal-test` builds an isolated local PTY host and checks the browser
+gateway's authentication, origin checks and terminal transport. It requires a C
+compiler on macOS, or a C compiler and OpenSSL development headers on Linux.
+These checks run local shell commands; they do not run commands on the console.
 
 `Dockerfile.validation` and `tools/validate-upstream.sh` support selected upstream
 checks. Across the affected host test runs, 340 tests passed and nine were

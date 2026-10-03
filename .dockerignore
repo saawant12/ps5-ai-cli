@@ -3,3 +3,4 @@ build
 .cache
 .git
 target
+web/node_modules

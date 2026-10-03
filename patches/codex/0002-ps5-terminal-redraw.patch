@@ -1,0 +1,15 @@
+diff --git a/codex-rs/tui/src/tui/screen_size.rs b/codex-rs/tui/src/tui/screen_size.rs
+index fe315d4..b2ebe9a 100644
+--- a/codex-rs/tui/src/tui/screen_size.rs
++++ b/codex-rs/tui/src/tui/screen_size.rs
+@@ -21,6 +21,10 @@ impl Tui {
+     /// Resolve event geometry while avoiding backend queries on ordinary repaint frames.
+     pub(crate) fn screen_size_for_event(&mut self, event: &TuiEvent) -> io::Result<Size> {
+         if matches!(event, TuiEvent::Resize(_)) {
++            // The PS5 transport also sends SIGWINCH when a fresh browser
++            // attaches. Its empty terminal needs every cell, even at the same size.
++            #[cfg(target_env = "ps5")]
++            self.terminal.invalidate_viewport();
+             self.schedule_screen_size_recheck(TRANSCRIPT_REFLOW_DEBOUNCE);
+         } else if matches!(event, TuiEvent::Draw | TuiEvent::FocusGained)
+             && let Some(deadline) = self.screen_size.pending_recheck_at

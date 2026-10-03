@@ -1,0 +1,14 @@
+FROM debian:trixie
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash ca-certificates clang-19 clang-format-19 lld-19 llvm-19 make \
+    curl unzip xz-utils python3 cmake pkg-config autoconf automake libtool \
+    perl git file libssl-dev libclang-19-dev \
+    && rm -rf /var/lib/apt/lists/*
+ENV PS5_PAYLOAD_SDK=/opt/ps5-payload-sdk LLVM_CONFIG=/usr/bin/llvm-config-19
+ENV PATH=/usr/lib/llvm-19/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+COPY sources.lock.json /tmp/ps5-ai-cli-sources.lock.json
+COPY tools/bootstrap-sdk.sh /tmp/ps5-ai-cli-bootstrap-sdk.sh
+RUN bash /tmp/ps5-ai-cli-bootstrap-sdk.sh /tmp/ps5-ai-cli-sources.lock.json \
+    && rm /tmp/ps5-ai-cli-bootstrap-sdk.sh /tmp/ps5-ai-cli-sources.lock.json
+WORKDIR /work
+ENTRYPOINT ["bash"]

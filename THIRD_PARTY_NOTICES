@@ -55,7 +55,9 @@ component-specific notices in its source distribution. tools/prepare-rust-std.py
 applies a narrow FreeBSD ABI field conversion to the installed source.
 
 PS5 Payload SDK 0.43: https://github.com/ps5-payload-dev/sdk
-The SDK is an external build prerequisite. Its repository contains the GNU GPL
+Dockerfile.sdk downloads the checksum-verified SDK and builds the pinned
+OpenSSL and curl sources. tools/bootstrap-sdk.sh adapts the cross-build options
+from Orbit's GPL-3.0-or-later build-deps.sh. The SDK remains an external build dependency. Its repository contains the GNU GPL
 version 3 and file-specific notices for its components. Preserve the applicable
 notices for the SDK runtime and any libraries incorporated into a binary.
 
@@ -63,3 +65,31 @@ Cargo dependency versions are recorded in the checked-in lockfiles. Licenses
 for transitive crates and external OpenSSL/curl libraries remain their own.
 This file describes the source tree; it is not a complete notice inventory for
 a future binary distribution.
+
+Orbit launcher adaptation
+------------------------
+launcher/install.c, install.h and platform_ps5.c are adapted from
+https://github.com/saawant12/orbit-store-ps5-source (GPL-3.0-or-later).
+The application identity, ownership records and storage are specific to
+PS5 AI CLI. The original installer structure and attribution are retained.
+
+xterm.js and Fit addon
+---------------------
+Upstream: https://github.com/xtermjs/xterm.js
+@xterm/xterm 6.0.0 and @xterm/addon-fit 0.11.0 are MIT licensed.
+See LICENSES/Xterm-LICENSE. Exact npm dependencies are pinned in
+web/package-lock.json. The offline browser assets are embedded at build time.
+
+Mozilla CA certificate bundle
+-----------------------------
+assets/cacert.pem contains public CA roots extracted by curl from Mozilla.
+Its dated download URL and SHA-256 are recorded in sources.lock.json. The
+unmodified certificate data retains its original comments and is MPL-2.0
+licensed; see LICENSES/MPL-2.0.txt and https://curl.se/docs/caextract.html.
+
+JetBrains Mono
+--------------
+Upstream: https://github.com/JetBrains/JetBrainsMono, tag v2.304.
+The unmodified regular and bold webfonts are embedded for offline terminal use.
+License: SIL Open Font License 1.1; see LICENSES/JetBrainsMono-OFL.txt.
+Their SHA-256 hashes are recorded in sources.lock.json.

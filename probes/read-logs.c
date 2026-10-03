@@ -26,18 +26,14 @@ static int send_bytes(int fd, const char *data, size_t size) {
 }
 
 static int is_log_name(const char *name) {
-    const char *prefix = "rust-runtime-";
-    if (strncmp(name, prefix, strlen(prefix))) {
-        prefix = "codex-version-";
-        if (strncmp(name, prefix, strlen(prefix))) {
-            prefix = "os-runtime-";
-            if (strncmp(name, prefix, strlen(prefix))) {
-                prefix = "codex-service-";
-                if (strncmp(name, prefix, strlen(prefix))) return 0;
-            }
-        }
+    const char *prefixes[] = {"rust-runtime-", "codex-version-", "os-runtime-",
+                             "codex-service-", "codex-terminal-"};
+    const char *p = NULL;
+    for (size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); i++) {
+        size_t length = strlen(prefixes[i]);
+        if (!strncmp(name, prefixes[i], length)) { p = name + length; break; }
     }
-    const char *p = name + strlen(prefix);
+    if (!p) return 0;
     if (!isdigit((unsigned char)*p)) return 0;
     while (isdigit((unsigned char)*p)) p++;
     return strcmp(p, ".log") == 0;
