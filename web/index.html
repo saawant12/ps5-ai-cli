@@ -29,7 +29,7 @@
   <main id="terminal-view" hidden>
     <div class="terminal-bar"><strong>Codex</strong><span id="geometry"></span><button id="reconnect" hidden>Reconnect</button><button id="keyboard-button">Keyboard</button></div>
     <div id="terminal" aria-label="Codex terminal"></div>
-    <div class="controller-help">D-pad Move · Use the Enter button below to confirm · Keyboard for text entry</div>
+    <div class="controller-help">D-pad Move · X Confirm · Keyboard for text entry</div>
     <div class="keys" aria-label="Terminal keys"><button data-key="esc">Esc</button><button data-key="tab">Tab</button><button data-key="up" aria-label="Up arrow">↑</button><button data-key="down" aria-label="Down arrow">↓</button><button data-key="left" aria-label="Left arrow">←</button><button data-key="right" aria-label="Right arrow">→</button><button data-key="interrupt">Ctrl+C</button><button data-key="enter">Enter</button></div>
   </main>
   <dialog id="pair-dialog" aria-labelledby="pair-title"><h2 id="pair-title">Connect to your PS5</h2><p>Enter the pairing code from the PS5 notification.</p><form id="pair-form"><label for="pair-code">Pairing code</label><input id="pair-code" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" autocomplete="off" required placeholder="00000000"><p id="pair-error" class="error" role="alert"></p><button type="submit" class="primary">Connect</button></form></dialog>

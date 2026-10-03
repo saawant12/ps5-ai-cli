@@ -10,3 +10,4 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .controller-help{display:none;flex-shrink:0;padding:6px 18px;color:#a8b5b6;font-size:13px;border-top:1px solid #292e30}
 .console-mode .controller-help{display:block}
 .controller-input button:focus,.controller-input input:focus,.controller-input textarea:focus:not(.xterm-helper-textarea){outline:3px solid #acf1c6;outline-offset:4px}
+#keyboard-shift,#keyboard-symbols,#keyboard-backspace{grid-column:span 2}#keyboard-space{grid-column:span 4}#keyboard-shift[aria-pressed=true]{background:#a8eabe;color:#15201a}

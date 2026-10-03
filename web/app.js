@@ -5,6 +5,7 @@ let socket = null, terminal = null, fit = null, paired = false, selected = false
 const consoleMode = new URLSearchParams(location.search).has('console');
 if (consoleMode) document.body.classList.add('console-mode');
 let controllerMode = 'terminal';
+let controllerFocus = null, activatingControl = false;
 const encoder = new TextEncoder();
 const keyBytes = {esc:'\x1b',tab:'\t',up:'\x1b[A',down:'\x1b[B',left:'\x1b[D',right:'\x1b[C',interrupt:'\x03',enter:'\r'};
 function notice(message) { $('notice').textContent = message; $('notice').hidden = !message; }
@@ -67,14 +68,52 @@ $('pair-form').onsubmit = async event => {
 };
 $('pair-dialog').addEventListener('cancel', event => event.preventDefault());
 for (const button of document.querySelectorAll('[data-key]')) button.onclick = () => { send(keyBytes[button.dataset.key]); terminal?.focus(); };
-$('keyboard-button').onclick = () => { $('keyboard-dialog').showModal(); $('keyboard-text').focus(); };
-$('keyboard-close').onclick = () => { $('keyboard-dialog').close(); terminal?.focus(); };
+$('keyboard-button').onclick = () => {
+  $('keyboard-dialog').showModal();
+  controllerFocus = consoleMode ? $('keyboard-grid').querySelector('button') : null;
+  (controllerFocus || $('keyboard-text')).focus();
+};
+$('keyboard-close').onclick = () => { controllerFocus = null; $('keyboard-dialog').close(); terminal?.focus(); };
 $('keyboard-send').onclick = () => { send($('keyboard-text').value); $('keyboard-text').value = ''; };
 $('keyboard-enter').onclick = () => { if ($('keyboard-text').value) $('keyboard-send').click(); send('\r'); };
-for (const label of '1234567890qwertyuiopasdfghjkl;zxcvbnm,./'.split('').concat(['Space','⌫'])) {
-  const button = document.createElement('button'); button.textContent = label;
-  button.onclick = () => { const input = $('keyboard-text'); input.value = label === '⌫' ? input.value.slice(0,-1) : input.value + (label === 'Space' ? ' ' : label); };
+function typeKeyboard(text, backspace = false) {
+  const input = $('keyboard-text');
+  let start = input.selectionStart, end = input.selectionEnd;
+  if (backspace && start === end) start = Array.from(input.value.slice(0, start)).slice(0, -1).join('').length;
+  input.setRangeText(text, start, end, 'end');
+}
+let keyboardShift = false, keyboardSymbols = false;
+const letterKeys = '1234567890qwertyuiopasdfghjkl;zxcvbnm,./';
+const symbolKeys = '!@#$%^&*()-_+=[]{}\\|:;"\'`~<>?/1234567890';
+const characterButtons = Array.from(letterKeys, (_, index) => {
+  const button = document.createElement('button');
+  button.onclick = () => typeKeyboard(button.textContent);
+  button.dataset.character = String(index);
   $('keyboard-grid').append(button);
+  return button;
+});
+function renderKeyboard() {
+  const labels = keyboardSymbols ? symbolKeys : keyboardShift ? letterKeys.toUpperCase() : letterKeys;
+  characterButtons.forEach((button, index) => { button.textContent = labels[index]; });
+  $('keyboard-shift').setAttribute('aria-pressed', String(keyboardShift));
+  $('keyboard-symbols').textContent = keyboardSymbols ? 'ABC' : '#+=';
+}
+for (const [id, label, action] of [
+  ['keyboard-shift','Shift',() => { keyboardShift = !keyboardShift; renderKeyboard(); }],
+  ['keyboard-symbols','#+=',() => { keyboardSymbols = !keyboardSymbols; renderKeyboard(); }],
+  ['keyboard-space','Space',() => typeKeyboard(' ')],
+  ['keyboard-backspace','⌫',() => typeKeyboard('', true)]
+]) {
+  const button = document.createElement('button'); button.id = id; button.textContent = label; button.onclick = action;
+  if (id === 'keyboard-backspace') button.setAttribute('aria-label', 'Backspace');
+  if (id === 'keyboard-symbols') button.setAttribute('aria-label', 'Switch letters and symbols');
+  $('keyboard-grid').append(button);
+}
+renderKeyboard();
+
+function activateControl(button) {
+  activatingControl = true;
+  try { button.click(); } finally { activatingControl = false; }
 }
 // A terminal consumes controller keys directly. Options moves focus to its
 // toolbar; a dialog temporarily uses normal button navigation.
@@ -83,7 +122,7 @@ function moveControllerFocus(direction, scope) {
   const controls = Array.from(scope.querySelectorAll('button:not(:disabled), input, textarea')).filter(el => el.getClientRects().length && !el.closest('.xterm'));
   if (!controls.length) return;
   const active = controls.includes(document.activeElement) ? document.activeElement : null;
-  if (!active) { controls[0].focus(); return; }
+  if (!active) { controllerFocus = controls[0]; controllerFocus.focus(); return; }
   const rect = active.getBoundingClientRect(), x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
   let best = null, score = Infinity;
   for (const control of controls) {
@@ -93,7 +132,7 @@ function moveControllerFocus(direction, scope) {
     const sideways = direction < 14 ? Math.abs(dx) : Math.abs(dy);
     if (forward > 4 && forward + sideways * 3 < score) { best = control; score = forward + sideways * 3; }
   }
-  best?.focus();
+  if (best) { controllerFocus = best; best.focus(); }
 }
 function controllerAction(button, source, now = performance.now()) {
   document.body.classList.add('controller-input');
@@ -103,33 +142,41 @@ function controllerAction(button, source, now = performance.now()) {
   const dialog = document.querySelector('dialog[open]');
   const inTerminal = terminal && !$('terminal-view').hidden;
   if (dialog) {
-    if (button === 1 && dialog.id === 'keyboard-dialog') $('keyboard-close').click();
+    if (button === 1 && dialog.id === 'keyboard-dialog') activateControl($('keyboard-close'));
     else if (button === 0) {
-      if (document.activeElement?.tagName === 'BUTTON') document.activeElement.click();
+      const focused = controllerFocus && dialog.contains(controllerFocus) ? controllerFocus : document.activeElement;
+      if (focused?.tagName === 'BUTTON') activateControl(focused);
       else if (dialog.id === 'pair-dialog') $('pair-form').requestSubmit();
-      else $('keyboard-grid').querySelector('button')?.focus();
+      else { controllerFocus = $('keyboard-grid').querySelector('button'); controllerFocus?.focus(); }
     } else if (button >= 12 && button <= 15) moveControllerFocus(button, dialog);
     return;
   }
   if (inTerminal && button === 9) {
     controllerMode = controllerMode === 'terminal' ? 'controls' : 'terminal';
-    if (controllerMode === 'controls') $('keyboard-button').focus(); else terminal.focus();
+    controllerFocus = controllerMode === 'controls' ? $('keyboard-button') : null;
+    if (controllerFocus) controllerFocus.focus(); else terminal.focus();
     return;
   }
   if (inTerminal && controllerMode === 'terminal') {
     const keys = {0:'enter',1:'esc',3:'tab',12:'up',13:'down',14:'left',15:'right'};
-    if (keys[button]) { send(keyBytes[keys[button]]); terminal.focus(); }
-    else if (button === 2) { $('keyboard-button').click(); $('keyboard-grid').querySelector('button')?.focus(); }
+    if (keys[button]) { controllerFocus = null; send(keyBytes[keys[button]]); terminal.focus(); }
+    else if (button === 2) {
+      activateControl($('keyboard-button'));
+      controllerFocus = $('keyboard-grid').querySelector('button'); controllerFocus?.focus();
+    }
     return;
   }
   if (button === 0) {
-    if (document.activeElement?.tagName === 'BUTTON') document.activeElement.click();
+    const focused = controllerFocus || document.activeElement;
+    if (focused?.tagName === 'BUTTON') activateControl(focused);
     else if (!inTerminal) $('launch-codex').focus();
-  } else if (button === 1 && inTerminal) { controllerMode = 'terminal'; terminal.focus(); }
+  } else if (button === 1 && inTerminal) { controllerFocus = null; controllerMode = 'terminal'; terminal.focus(); }
   else if (button >= 12 && button <= 15) moveControllerFocus(button, document);
 }
 function gamepadFrame(now) {
-  const pad = Array.from(navigator.getGamepads?.() || []).find(pad => pad && pad.connected !== false);
+  let pad = null;
+  try { pad = Array.from(navigator.getGamepads?.() || []).find(pad => pad && pad.connected !== false); }
+  catch (_) { /* Console click/arrow input remains available without Gamepad access. */ }
   const pressed = new Set();
   if (pad && !document.hidden) {
     pad.buttons.forEach((button,index) => { if (button.pressed) pressed.add(index); });
@@ -146,9 +193,38 @@ function gamepadFrame(now) {
   requestAnimationFrame(gamepadFrame);
 }
 requestAnimationFrame(gamepadFrame);
-window.addEventListener('pointerdown', () => document.body.classList.remove('controller-input'));
+// PS5's webview reports Cross as a mouse click, including clicks on the
+// terminal's hidden textarea or the page background. Preserve D-pad focus
+// through that click's pointerdown; actual pointer movement restores pointing.
+let pointerPosition = null;
+function usePointer() { controllerFocus = null; document.body.classList.remove('controller-input'); }
+window.addEventListener('pointermove', event => {
+  const moved = Math.abs(event.movementX || 0) + Math.abs(event.movementY || 0) > 2 ||
+    (pointerPosition && Math.abs(event.clientX - pointerPosition.x) + Math.abs(event.clientY - pointerPosition.y) > 2);
+  if (moved) usePointer();
+  pointerPosition = {x:event.clientX,y:event.clientY};
+});
+window.addEventListener('pointerdown', event => { if (event.pointerType === 'touch') usePointer(); });
+window.addEventListener('click', event => {
+  if (!consoleMode || activatingControl || event.button > 0 || !(event.target instanceof Element)) return;
+  const dialog = document.querySelector('dialog[open]');
+  const focused = controllerFocus && controllerFocus.getClientRects().length ? controllerFocus : null;
+  const navigateControl = focused && (dialog ? dialog.contains(focused) : controllerMode === 'controls');
+  const terminalClick = !dialog && terminal && !$('terminal-view').hidden && controllerMode === 'terminal' &&
+    (event.target.closest('#terminal') || event.target === document.body || event.target === document.documentElement);
+  if (!navigateControl && !terminalClick) return;
+  if (terminalClick && (terminal.hasSelection() || window.getSelection()?.toString())) return;
+  event.preventDefault(); event.stopImmediatePropagation();
+  if (navigateControl) focused.focus();
+  controllerAction(0, 'click');
+}, true);
 window.addEventListener('keydown', event => {
   document.body.classList.add('controller-input');
+  if (event.key === 'Tab') controllerFocus = null;
+  if ($('keyboard-dialog').open && event.target !== $('keyboard-text') && event.key.length === 1 &&
+      !event.isComposing && !event.altKey && !event.ctrlKey && !event.metaKey) {
+    event.preventDefault(); controllerFocus = null; typeKeyboard(event.key); $('keyboard-text').focus(); return;
+  }
   if (!consoleMode || event.isComposing || event.keyCode === 229 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
   const keys = {Enter:0,Escape:1,BrowserBack:1,ArrowUp:12,ArrowDown:13,ArrowLeft:14,ArrowRight:15};
   const button = keys[event.key];

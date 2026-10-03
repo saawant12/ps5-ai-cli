@@ -1,6 +1,7 @@
 -Wl,--wrap=accept4
 -Wl,--wrap=chown
 -Wl,--wrap=chroot
+-Wl,--wrap=clock_nanosleep
 -Wl,--wrap=dup
 -Wl,--wrap=faccessat
 -Wl,--wrap=fchdir

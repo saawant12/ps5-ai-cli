@@ -11,22 +11,21 @@ Antigravity, Devin, and other AI CLIs** in later versions. Those integrations
 are not available yet; this is a multi-CLI project with a Codex-first beta.
 
 **Development source only. There is no usable beta or ready-to-install app yet.**
-Account login, model replies and complete coding tasks have not been verified.
-A terminal interface is under development. Desktop and phone-sized browser tests
-have exercised the actual Codex CLI through a host PTY. The same terminal bridge
-has also reached Codex's native onboarding screen on PS5. Account login and
-coding-tool execution remain unverified.
+Device-code login, login persistence across a payload restart, controller text
+entry and a model reply have passed on PS5. Native coding-tool execution and
+complete coding tasks remain unverified. Desktop and phone-sized browser tests
+have also exercised the actual Codex CLI through a host PTY.
 
 ## Verified compatibility
 
 | Component | Hardware result |
 | --- | --- |
 | Firmware and loader | PS5 13.60, Relapse / elfldr, Payload Manager v0.5.2 |
-| Rust 1.95 runtime | Allocation, file I/O, threads, mutexes, Tokio timers and async TCP passed |
+| Rust 1.95 runtime | Allocation, file I/O, threads, mutexes, thread sleep, Tokio timers and async TCP passed |
 | Codex 0.160.0 | Native version output and authenticated app-server initialization, account status and thread listing passed |
-| Interactive terminal | Native Codex onboarding rendered through the PS5-hosted browser terminal; login and coding tools remain unverified |
+| Interactive terminal | Native Codex device-code login, login persistence across a payload restart, a model reply, physical X confirmation, and D-pad/X keypad entry passed |
 | Native child loader | Rust FFI launch with an active Tokio runtime passed arguments, environment, working directory, standard streams, exit status and cancellation checks |
-| HTTPS diagnostic | Native curl/OpenSSL verified the login host and rejected self-signed and wrong-host certificates using supplied CA roots and temporary host-resolved addresses; native DNS failed |
+| HTTPS diagnostic | Native DNS and curl/OpenSSL verification of the login host passed with bundled CA roots; self-signed and wrong-host certificates were rejected |
 
 The child-loader result does not establish `std::process::Command` compatibility
 or working Codex shell tools. Versions and upstream hashes are recorded in
@@ -93,14 +92,25 @@ The shortcut opens an already-running payload; reboot/autostart behavior is
 not yet verified. The shortcut pairs the console locally over loopback. Remote
 browsers pair using the code in the PS5 notification.
 
+Launching the ELF again does not restart an existing instance. If it reports
+that the port may already be in use and the app still opens, use the home-screen
+shortcut. To restart, stop the existing PS5 AI CLI process before launching the
+ELF once; leave other payload processes running.
+
 The raw terminal bridge carries Codex input/output and window-size changes. It
 is not a general-purpose kernel PTY and does not implement cooked terminal
 input, shell job control, or the native command backend. Only Codex is selectable;
 other CLI ports are unavailable. Login and coding behavior belong to Codex.
 The terminal embeds JetBrains Mono for consistent offline text rendering.
-On the tested PS5 browser, the D-pad changes CLI selections and the on-screen
-**Enter** button works. **Physical X does not send Enter directly to the terminal**;
-activate the on-screen Enter button instead. This is a known beta limitation.
+On the tested PS5 browser, the D-pad changes CLI selections, physical **X**
+confirms them, and the on-screen **Enter** button also works. Open **Keyboard**
+to enter text with the D-pad and X; Shift, symbols, Space and Backspace are
+available. The PS5 browser delivers X as a click, which the terminal translates
+to Enter and the keypad applies to the selected key.
+
+Codex uses file-based credential storage in `/data/ps5-ai-cli/home/.codex`.
+Closing the browser or replacing the payload preserves that directory; signing
+out or removing the saved data requires signing in again.
 
 Browsers exposing the standard Gamepad API also have mappings for X/Enter,
 Circle/Escape, Square/text entry, Triangle/Tab, and Options/toolbar focus. Face
@@ -147,11 +157,9 @@ and does not install an autostart service.
 - Native PTY creation returns `ENOSYS`; a shell is not bundled.
 - Ordinary kernel execution rejects the tested SDK ELF. The separate child
   loader has not been integrated into Codex command execution.
-- Codex device login failed at hostname resolution in the earlier connectivity
-  test, and the expected system CA paths were absent. The terminal build now
-  bundles certificate roots; end-to-end login remains unverified.
-  Isolated curl/OpenSSL HTTPS checks passed with supplied roots and addresses;
-  this does not verify Codex login, token exchange or model requests.
+- The terminal bundles certificate roots because the expected system CA paths
+  are absent. Device-code login and a model reply have passed with a working DNS
+  resolver; complete coding tasks remain unverified.
 - The app-server uses capability-token authentication. Missing or incorrect
   tokens return HTTP 401; browser Origin requests return 403. A browser gateway
   and PS5 interface are under development.
