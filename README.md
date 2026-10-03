@@ -1,196 +1,155 @@
-# ps5-ai-cli
+# PS5 AI CLI
 
-An experimental home for AI coding CLIs on jailbroken PlayStation 5 consoles,
-with a simple CLI picker and terminal access from the PS5, a computer or a phone.
-Choose an available CLI to open its own interface. The launcher does not manage
-conversations or replace the CLI's prompts, login or approvals.
+### Open Codex on your PS5. Use the CLI you already know.
 
-[OpenAI Codex](https://github.com/openai/codex) is the first native port and the
-focus of the initial beta. The project is intended to expand to **Claude Code,
-Antigravity, Devin, and other AI CLIs** in later versions. Those integrations
-are not available yet; this is a multi-CLI project with a Codex-first beta.
+PS5 AI CLI brings the native [OpenAI Codex CLI](https://github.com/openai/codex)
+to jailbroken PlayStation 5 consoles. Open the home-screen icon, choose Codex,
+and use its own terminal interface. Enter text with your controller or connect
+from a phone or computer on the same network.
 
-**Development source only. There is no usable beta or ready-to-install app yet.**
-Device-code login, login persistence across a payload restart, controller text
-entry and a model reply have passed on PS5. Native coding-tool execution and
-complete coding tasks remain unverified. Desktop and phone-sized browser tests
-have also exercised the actual Codex CLI through a host PTY.
+[Release status](https://github.com/saawant12/ps5-ai-cli/releases) ·
+[Setup and controls](#getting-started) ·
+[Report a problem](https://github.com/saawant12/ps5-ai-cli/issues) ·
+[llms.txt](llms.txt)
 
-## Verified compatibility
+## What you can do
 
-| Component | Hardware result |
+- **Open the real CLI.** Codex runs on the PS5, with its own prompts, sign-in and
+  approval screens.
+- **Use your controller.** D-pad moves through choices, X confirms, and the
+  on-screen keyboard lets you enter text.
+- **Use another screen.** Pair a phone or computer to access the same running
+  CLI through your browser.
+- **Stay signed in.** Codex keeps its sign-in on the console across payload
+  restarts, as long as you keep its saved data.
+- **Read comfortably on the TV.** A bundled monospace font keeps terminal text
+  evenly spaced without downloading fonts.
+
+**Codex is the first supported CLI.** Claude Code, Antigravity and Devin are
+shown as unavailable in the picker; their integrations are planned for later.
+The launcher opens one CLI and leaves conversations and approvals to that CLI.
+
+## Beta status
+
+**The first public beta is being prepared. No downloadable release is available
+yet.** You can [build the development version](docs/DEVELOPMENT.md) to help test.
+
+On the tested PS5, the home-screen shortcut, device-code sign-in, saved sign-in
+after a payload restart, a model reply, physical X confirmation and D-pad/X text
+entry have passed. Separate native tests also passed shell commands, pipelines,
+file edits and bundled tool installation. A complete coding task driven by the
+model is still being validated.
+
+Testing currently covers **PS5 firmware 13.60**, **Relapse / elfldr** and
+**Payload Manager v0.5.2**, with **Codex 0.160.0**. Other firmware and loader
+combinations, reboot/auto-start, and a USB or Bluetooth keyboard connected
+directly to the PS5 remain unverified. Keyboard and phone-sized layouts have
+been tested in host browsers.
+
+## Getting started
+
+For now, these steps apply to a development build. You need a jailbroken PS5
+capable of loading homebrew ELF payloads. Keep the console awake and give it
+working internet and DNS access for Codex sign-in and model responses.
+
+1. **Install and run the payload.** Build `ps5-ai-cli.elf` using the
+   [developer guide](docs/DEVELOPMENT.md), install it in Payload Manager, and run
+   it once. A successful startup adds the **PS5 AI CLI** home-screen icon.
+2. **Open the icon.** Choose **Codex** in the CLI picker.
+3. **Sign in through Codex.** For device-code sign-in, follow the address and
+   code shown by Codex on another device.
+4. **Enter your prompt.** Open **Keyboard** to type using the D-pad and X, then
+   select **Enter** to submit. Codex handles the conversation from there.
+
+The icon opens the running payload; it cannot start the payload by itself.
+After a console restart, run your jailbreak and start **PS5 AI CLI** through
+your payload manager before opening the icon. Auto-start has not been verified.
+
+### From your phone or computer
+
+While the payload is running, visit `http://PS5_IP:8035/` on the same local
+network, replacing `PS5_IP` with your console's address. Enter the **eight-digit
+pairing code** from the PS5 notification, then choose **Codex**.
+
+This browser pairing code connects your device to the console. Codex's
+device-code sign-in is a separate step inside the terminal. Only one browser
+can control the terminal at a time; use **Disconnect** before switching screens.
+
+## Controls
+
+| Control | Action |
 | --- | --- |
-| Firmware and loader | PS5 13.60, Relapse / elfldr, Payload Manager v0.5.2 |
-| Rust 1.95 runtime | Allocation, file I/O, threads, mutexes, thread sleep, Tokio timers and async TCP passed |
-| Codex 0.160.0 | Native version output and authenticated app-server initialization, account status and thread listing passed |
-| Interactive terminal | Native Codex device-code login, login persistence across a payload restart, a model reply, physical X confirmation, and D-pad/X keypad entry passed |
-| Native child loader | Rust FFI launch with an active Tokio runtime passed arguments, environment, working directory, standard streams, exit status and cancellation checks |
-| HTTPS diagnostic | Native DNS and curl/OpenSSL verification of the login host passed with bundled CA roots; self-signed and wrong-host certificates were rejected |
+| D-pad | Move through Codex choices or the on-screen keyboard |
+| X / Cross | Confirm a choice or press the selected on-screen key |
+| **Keyboard** | Open text entry, including Shift, symbols, Space and Backspace |
+| On-screen **Enter** | Submit to Codex |
+| Terminal toolbar | Send Esc, Tab, arrow keys or Ctrl+C |
+| Phone touch / computer mouse | Select visible controls |
+| Computer keyboard | Type into the terminal and use keyboard shortcuts |
 
-The child-loader result does not establish `std::process::Command` compatibility
-or working Codex shell tools. Versions and upstream hashes are recorded in
-[sources.lock.json](sources.lock.json).
+Physical D-pad/X and on-screen keyboard entry have been confirmed on PS5.
+Directly connected PS5 keyboards and additional controller button shortcuts
+still need hardware testing.
 
-## Build
+## Saved sign-in and updates
 
-The tested host is ARM64 Linux through Docker. Install Docker, Git, Python 3,
-and Node.js/npm on the host. Build the SDK and Rust toolchain from their public
-sources, then fetch the pinned Codex source:
+Codex stores sign-in data under `/data/ps5-ai-cli/home/.codex`. Closing the
+browser or replacing the payload keeps that data. Signing out or deleting the
+saved data means you will need to sign in again. The default working folder is
+`/data/ps5-ai-cli/workspace`.
 
-```sh
-make sdk
-make toolchain
-python3 tools/fetch-codex.py
-make terminal
-```
+To replace a development build, finish the current task, stop the identifiable
+**PS5 AI CLI** process in Payload Manager, install the replacement ELF, and run
+it once. Keep the saved data and leave other payloads running. Launching the ELF
+again while the existing instance is running does not restart it.
 
-The SDK bootstrap verifies the archive hashes in `sources.lock.json`, installs
-LLVM 19 and cross-compiles OpenSSL/curl. No sibling repository or private Docker
-image is required. Downloads require internet access on the build machine;
-the console can remain offline for startup and terminal testing.
+PS5 AI CLI has its own shortcut, port and saved-data folder, separate from Orbit
+Store. You do not need to remove Orbit to use it.
 
-Use `make terminal-release` for the optimized ELF. For development diagnostics,
-run `make probe`, `make test`, `make codex-check`, or `make codex-build`.
+## When something needs attention
 
-Full Codex builds default to one compilation job. Avoid concurrent large builds
-in memory-constrained Docker environments.
+- **“Couldn't connect to server” when opening the icon:** check that the
+  PS5 AI CLI payload is running, then reopen the icon.
+- **The app stopped responding after changing Wi-Fi or LAN settings:** restart
+  only the PS5 AI CLI payload in Payload Manager, then reopen it. Automatic
+  recovery after a network change is not implemented yet.
+- **“Port may already be in use”:** an instance may already be running. Try the
+  icon first. Identify the existing PS5 AI CLI process before stopping anything;
+  repeatedly launching the ELF does not restart it.
+- **Your phone or computer cannot connect:** use the console's current address,
+  check that both devices are on the same local network, and confirm the payload
+  is running on port **8035**.
+- **“Failed to request device code”:** check the console's internet connection
+  and DNS resolver before retrying. A loopback DNS address requires a running
+  local resolver.
+- **The terminal disconnected:** choose **Reconnect** if the payload is still
+  running. Otherwise start it again through Payload Manager.
 
-- `make probe` builds `build/ps5-rust-runtime-probe.elf`.
-- `make codex-check` checks compilation; it does not link or run an ELF.
-- `make codex-build` builds a diagnostic ELF invoking the real CLI with
-  `--version`. It does not start an interactive session.
-- `make process-probe`, `make loader-probe` and `make rust-loader-probe` build
-  development diagnostics for native process behavior.
-- `make log-reader` builds the temporary diagnostic log collector.
-- `make network-probe` builds a bounded DNS/HTTPS diagnostic. Supply a CA PEM
-  bundle at `build/network-probe-ca.pem` first; the build does not download roots.
+For a bug report, include the app version or build ID, firmware, payload manager
+and steps to reproduce in [Issues](https://github.com/saawant12/ps5-ai-cli/issues).
+Leave out pairing codes, sign-in codes, credentials and private prompt content.
 
-The custom target rebuilds Rust `std` for the FreeBSD 11 libc ABI, uses
-position-independent code and disables native ELF TLS. The SDK provides process
-startup and native `.sprx` imports. ABI adapters are in `platform/`; upstream
-changes are in `patches/`. Codex uses the resolution lock in `locks/codex/`.
+## Current limits
 
-The tested app-server ELF was linked from captured Rust objects using
-`tools/relink-codex.py --service` and locally generated configuration. That helper
-is not a standalone reproducible service build.
+Codex is the only available CLI. Complete coding workflows are still under
+validation. Commands use a bundled native shell and file tools; interactive
+child programs that require a kernel PTY are unsupported. Ordinary Linux or
+FreeBSD executables cannot be used as PS5 tools.
 
-## Terminal development build
+The launcher and terminal assets load locally. Codex sign-in and model responses
+need internet access. The launcher does not provide an AI account or subscription.
 
-`make terminal` embeds the offline xterm.js assets, certificate roots and PS5
-shortcut, then builds `build/ps5-ai-cli.elf` through a locked Cargo invocation.
-`make terminal-release` selects the optimized profile. Node.js/npm is required
-to install the pinned web packages. Optimized development builds have reached
-native onboarding; complete beta behavior has not yet passed hardware tests.
+## For developers
 
-`make terminal-dev` is an optional faster relink from the last captured Rust
-build. The normal `make terminal` path does not depend on those captured objects.
+See the [build and testing guide](docs/DEVELOPMENT.md) for Docker setup, pinned
+dependencies, native compatibility results and console diagnostics. Exact source
+versions are recorded in [sources.lock.json](sources.lock.json).
 
-The application uses title `PAIC00001`, HTTP port `8035`, and storage under
-`/data/ps5-ai-cli`. Its home-screen shortcut opens the local CLI picker. The
-installer preserves unrelated applications and refuses conflicting title files.
-The shortcut opens an already-running payload; reboot/autostart behavior is
-not yet verified. The shortcut pairs the console locally over loopback. Remote
-browsers pair using the code in the PS5 notification.
+## Licence
 
-Launching the ELF again does not restart an existing instance. If it reports
-that the port may already be in use and the app still opens, use the home-screen
-shortcut. To restart, stop the existing PS5 AI CLI process before launching the
-ELF once; leave other payload processes running.
-
-The raw terminal bridge carries Codex input/output and window-size changes. It
-is not a general-purpose kernel PTY and does not implement cooked terminal
-input, shell job control, or the native command backend. Only Codex is selectable;
-other CLI ports are unavailable. Login and coding behavior belong to Codex.
-The terminal embeds JetBrains Mono for consistent offline text rendering.
-On the tested PS5 browser, the D-pad changes CLI selections, physical **X**
-confirms them, and the on-screen **Enter** button also works. Open **Keyboard**
-to enter text with the D-pad and X; Shift, symbols, Space and Backspace are
-available. The PS5 browser delivers X as a click, which the terminal translates
-to Enter and the keypad applies to the selected key.
-
-Codex uses file-based credential storage in `/data/ps5-ai-cli/home/.codex`.
-Closing the browser or replacing the payload preserves that directory; signing
-out or removing the saved data requires signing in again.
-
-Browsers exposing the standard Gamepad API also have mappings for X/Enter,
-Circle/Escape, Square/text entry, Triangle/Tab, and Options/toolbar focus. Face
-buttons act once per press. These mappings pass browser simulations, but that
-does not establish support in the PS5 browser. Normal keyboard typing and
-shortcuts pass host-browser checks; a keyboard attached directly to PS5 still
-needs hardware verification.
-
-The payload locates its own installed ELF by an embedded build marker in
-Payload Manager and copies it into its private runtime directory. Both grouped
-and per-upload Payload Manager directories are supported.
-
-## Console diagnostics
-
-Payload Manager's HTTP interface can upload and launch a development payload
-through the console's local loader; an externally listening port 9021 is not
-required. This route was tested with Payload Manager v0.5.2.
-
-```sh
-make upload-probe MANAGER=http://PS5_IP:8084
-```
-
-The uploader validates the ELF, uses a content-derived filename, records its own
-uploads locally, and removes recorded superseded builds of the same payload.
-It refuses to relaunch an identical installed copy automatically and never
-retries a launch. Unrecorded payloads are not selected for deletion. Payload
-Manager can remove autoload entries associated with deleted payloads. An HTTP
-`OK` response confirms handoff to the loader, not successful execution.
-
-The Rust probe reports notifications and writes its result under
-`/data/ps5-ai-cli/`. It makes no AI requests and requires no API credentials.
-
-The optional log collector serves `http://PS5_IP:19061/logs` once, then exits.
-It reads only the project's matching runtime and service logs: the newest 16
-files, at most 64 KiB per file. It times out after 90 seconds without a connection
-and does not install an autostart service.
-
-## Limitations
-
-- Changing the PS5 network settings can leave the web service unreachable while
-  its process remains running. Restart the PS5 AI CLI payload in Payload Manager
-  after changing Wi-Fi/LAN settings. Reopening the shortcut alone does not
-  restart the service; automatic network recovery is not yet implemented.
-- Native PTY creation returns `ENOSYS`; a shell is not bundled.
-- Ordinary kernel execution rejects the tested SDK ELF. The separate child
-  loader has not been integrated into Codex command execution.
-- The terminal bundles certificate roots because the expected system CA paths
-  are absent. Device-code login and a model reply have passed with a working DNS
-  resolver; complete coding tasks remain unverified.
-- The app-server uses capability-token authentication. Missing or incorrect
-  tokens return HTTP 401; browser Origin requests return 403. A browser gateway
-  and PS5 interface are under development.
-- PS5 keyring requests return Unsupported; upstream file and ephemeral auth
-  stores remain available. PATH aliases are also unsupported.
-
-## Validation
-
-`make test` runs local ELF-validation, payload-cleanup and launcher-isolation tests after checking
-the built Rust probe. The system-kernel ELF case also requires a built loader
-probe; it is skipped when that optional artifact is absent.
-
-`make terminal-test` builds an isolated local PTY host and checks the browser
-gateway's authentication, origin checks and terminal transport. It requires a C
-compiler on macOS, or a C compiler and OpenSSL development headers on Linux.
-These checks run local shell commands; they do not run commands on the console.
-
-`Dockerfile.validation` and `tools/validate-upstream.sh` support selected upstream
-checks. Across the affected host test runs, 340 tests passed and nine were
-skipped. Formatting and Bazel lock regeneration also passed. These results do not
-represent a full upstream test-suite run or a complete PS5 coding task.
-
-## License
-
-Original project code is licensed under **GPL-3.0-or-later**: GNU General Public
-License version 3, or (at your option) any later version. See [LICENSE](LICENSE).
-Third-party code retains its respective licenses; see
+Original project code is **GPL-3.0-or-later**. See [LICENSE](LICENSE).
+Third-party components retain their own licences; see
 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) and [LICENSES](LICENSES).
 
-Upstream projects: [Codex](https://github.com/openai/codex),
-[PS5 SDK](https://github.com/ps5-payload-dev/sdk),
-[shsrv](https://github.com/ps5-payload-dev/shsrv),
-[Payload Manager](https://github.com/itsPLK/ps5-payload-manager),
-[Relapse](https://github.com/ntfargo/Relapse-Exploit).
+PS5 AI CLI is an independent homebrew project, unaffiliated with Sony,
+PlayStation or OpenAI.
