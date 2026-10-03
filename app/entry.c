@@ -15,6 +15,9 @@
 #include "../build/terminal-pair.h"
 #endif
 extern int ps5_install_runtime_image(void);
+extern int ps5_install_runtime_tools(void);
+extern int ps5_configure_runtime_tools(void);
+extern int ps5_set_executable_path(const char *path);
 extern int ps5_install_trust_store(void);
 extern int __real_main(int argc, char **argv);
 struct notification { char reserved[45]; char message[3075]; };
@@ -31,12 +34,27 @@ static int directory(const char *path) {
     close(fd); return 0;
 }
 int __wrap_main(int argc, char **argv) {
-    (void)argc; (void)argv;
+    /* Self re-execs must preserve the caller's arguments, environment and cwd.
+     * They run an upstream CLI/helper entry, without starting another gateway. */
+    const char *arg0 = argc > 0 && argv && argv[0] ? argv[0] : "";
+    const char *name = strrchr(arg0, '/');
+    name = name ? name + 1 : arg0;
+    const char *arg1 = argc > 1 && argv[1] ? argv[1] : "";
+    if (!strcmp(arg0, PS5_AI_STATE "/runtime/codex.elf") ||
+        !strcmp(name, "apply_patch") || !strcmp(name, "applypatch") ||
+        !strcmp(name, "codex-execve-wrapper") ||
+        !strcmp(arg1, "--codex-run-as-apply-patch") ||
+        !strcmp(arg1, "--codex-run-as-fs-helper") ||
+        !strcmp(arg1, "--codex-run-as-arg0-exec-helper")) {
+        if (ps5_set_executable_path(PS5_AI_STATE "/runtime/codex.elf")) return 1;
+        return __real_main(argc, argv);
+    }
     if (directory(PS5_AI_STATE) || directory(PS5_AI_STATE "/home") || directory(PS5_AI_STATE "/workspace") || directory(PS5_AI_STATE "/home/.codex") || directory(PS5_AI_STATE "/tmp")) return 1;
     /* Configure this process before starting any threads. */
     if (setenv("HOME", PS5_AI_STATE "/home", 1) || setenv("CODEX_HOME", PS5_AI_STATE "/home/.codex", 1) ||
         setenv("TERM", "xterm-256color", 1) || chdir(PS5_AI_STATE "/workspace")) return 1;
-    if (setenv("TMPDIR", PS5_AI_STATE "/tmp", 1) || ps5_install_trust_store()) return 1;
+    if (setenv("TMPDIR", PS5_AI_STATE "/tmp", 1) || ps5_install_trust_store() ||
+        ps5_configure_runtime_tools()) return 1;
     signal(SIGPIPE, SIG_IGN);
     char code[9]; snprintf(code, sizeof(code), "%08u", arc4random_uniform(100000000));
 #ifdef PS5_DEV_PAIRING
@@ -76,7 +94,7 @@ int __wrap_main(int argc, char **argv) {
         installed >= 0 ? "Open the PS5 AI CLI icon" : "Shortcut unavailable; browser terminal is running");
     notify(message);
     if (ps5_terminal_wait()) return 1;
-    if (ps5_install_runtime_image()) {
+    if (ps5_install_runtime_image() || ps5_install_runtime_tools()) {
         char failure[192];
         snprintf(failure, sizeof(failure), "PS5 AI CLI runtime setup failed: %s. Check its installed ELF in Payload Manager.", strerror(errno));
         notify(failure);

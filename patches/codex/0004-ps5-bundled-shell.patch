@@ -1,0 +1,32 @@
+diff --git a/codex-rs/shell-command/src/shell_detect.rs b/codex-rs/shell-command/src/shell_detect.rs
+index c82d263..0dc5b5a 100644
+--- a/codex-rs/shell-command/src/shell_detect.rs
++++ b/codex-rs/shell-command/src/shell_detect.rs
+@@ -58,7 +58,7 @@ pub fn detect_shell_type(shell_path: impl AsRef<std::path::Path>) -> Option<Shel
+     }
+ }
+ 
+-#[cfg(unix)]
++#[cfg(all(unix, not(target_env = "ps5")))]
+ fn get_user_shell_path() -> Option<PathBuf> {
+     let uid = unsafe { libc::getuid() };
+     use std::ffi::CStr;
+@@ -119,6 +119,18 @@ fn get_user_shell_path() -> Option<PathBuf> {
+     }
+ }
+ 
++#[cfg(target_env = "ps5")]
++fn get_user_shell_path() -> Option<PathBuf> {
++    use std::os::unix::fs::PermissionsExt;
++
++    // Installed by the payload before the CLI starts. PS5's data filesystem
++    // rejects access(X_OK) even for SDK executables launched by our loader.
++    let path = PathBuf::from(std::env::var_os("SHELL")?);
++    let metadata = std::fs::metadata(&path).ok()?;
++    (path.is_absolute() && metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
++        .then_some(path)
++}
++
+ #[cfg(not(unix))]
+ fn get_user_shell_path() -> Option<PathBuf> {
+     None

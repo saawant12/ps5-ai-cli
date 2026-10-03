@@ -8,6 +8,7 @@ edition = "2024"
 crate-type = ["staticlib"]
 
 [dependencies]
+codex-utils-pty = { path = "../../vendor/codex/codex-rs/utils/pty" }
 libc = "=0.2.186"
 tokio = { version = "=1.52.3", features = ["rt-multi-thread", "net", "time", "io-util", "signal"] }
 

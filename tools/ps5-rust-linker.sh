@@ -21,7 +21,7 @@ native=/work/build
 if [[ "${PS5_TERMINAL:-0}" == 1 ]]; then
   native="${PS5_NATIVE_DIR:-/work/build}"
   entry=("$native/terminal-entry.o")
-  for name in gateway http websocket native-terminal runtime-image trust-store; do
+  for name in gateway http websocket native-terminal runtime-image runtime-tools trust-store; do
     extra+=("$native/terminal-$name.o")
   done
   extra+=("$native/launcher-install.o" "$native/launcher-platform_ps5.o"
@@ -29,6 +29,9 @@ if [[ "${PS5_TERMINAL:-0}" == 1 ]]; then
     -L/opt/ps5-payload-sdk/target/user/homebrew/lib -lcrypto
     -Wl,--push-state,--no-as-needed -lSceIpmi -Wl,--pop-state -lSceAppInstUtil)
 fi
+for name in sdk-elf sdk-spawn elfldr pt; do
+  extra+=("$native/runtime-$name.o")
+done
 # rustc passes -nodefaultlibs, so name the native SDK imports explicitly.
 exec /opt/ps5-payload-sdk/bin/prospero-clang "${args[@]}" "$native/ps5-compat.o" \
   "$native/ps5-syscalls.o" "${syscall_flags[@]}" \

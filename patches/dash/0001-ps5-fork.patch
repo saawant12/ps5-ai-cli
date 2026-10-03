@@ -1,0 +1,138 @@
+diff --git a/src/exec.c b/src/exec.c
+index 6fe0fed..a888415 100644
+--- a/src/exec.c
++++ b/src/exec.c
+@@ -72,6 +72,8 @@
+ #include "alias.h"
+ #include "system.h"
+ 
++extern int ps5_shell_execve(const char *, char *const [], char *const []);
++
+ 
+ #define CMDTABLESIZE 31		/* should be prime */
+ #define ARB 1			/* actual size determined at run time */
+@@ -152,15 +154,17 @@ shellexec(char **argv, const char *path, int idx)
+ STATIC void
+ tryexec(char *cmd, char **argv, char **envp)
+ {
+-	char *const path_bshell = _PATH_BSHELL;
++	char *path_bshell = getenv("SHELL");
++	if (!path_bshell || !*path_bshell)
++		path_bshell = "/data/ps5-ai-cli/runtime/sh";
+ 
+ repeat:
+ #ifdef SYSV
+ 	do {
+-		execve(cmd, argv, envp);
++		ps5_shell_execve(cmd, argv, envp);
+ 	} while (errno == EINTR);
+ #else
+-	execve(cmd, argv, envp);
++	ps5_shell_execve(cmd, argv, envp);
+ #endif
+ 	if (cmd != path_bshell && errno == ENOEXEC) {
+ 		*argv-- = cmd;
+diff --git a/src/jobs.c b/src/jobs.c
+index 914b383..01519e4 100644
+--- a/src/jobs.c
++++ b/src/jobs.c
+@@ -999,9 +999,11 @@ struct job *vforkexec(union node *n, char **argv, const char *path, int idx)
+ 		mypid = getpid();
+ 	vforked = mypid;
+ 
+-	pid = vfork();
++	/* PS5's command loader allocates while preparing an SDK child. */
++	pid = fork();
+ 
+ 	if (!pid) {
++		vforked = 0;
+ 		forkchild(jp, n, FORK_FG);
+ 		shellexec(argv, path, idx);
+ 		/* NOTREACHED */
+@@ -1150,15 +1152,13 @@ out:
+ 
+ static int dowait(int block, struct job *jp)
+ {
+-	int gotchld = *(volatile int *)&gotsigchld;
+ 	int rpid;
+ 	int pid;
+ 
+ 	if (jp && jp->state != JOBRUNNING)
+ 		block = DOWAIT_NONBLOCK;
+ 
+-	if (block == DOWAIT_NONBLOCK && !gotchld)
+-		return 1;
++	/* PS5 may omit SIGCHLD notifications. Always check waitpid. */
+ 
+ 	rpid = 1;
+ 
+@@ -1179,51 +1179,37 @@ static int dowait(int block, struct job *jp)
+  * blocking.  If block is DOWAIT_WAITCMD, we return 0 when a signal
+  * other than SIGCHLD interrupted the wait.
+  *
+- * We use sigsuspend in conjunction with a non-blocking wait3 in
+- * order to ensure that waitcmd exits promptly upon the reception
+- * of a signal.
+- *
+- * For code paths other than waitcmd we either use a blocking wait3
+- * or a non-blocking wait3.  For the latter case the caller of dowait
+- * must ensure that it is called over and over again until all dead
+- * children have been reaped.  Otherwise zombies may linger.
++ * PS5 polls waitpid instead of depending on SIGCHLD delivery. Non-blocking
++ * callers still check for exited children when no signal was observed.
+  */
+ 
+ 
+ STATIC int
+ waitproc(int block, int *status)
+ {
+-	sigset_t oldmask;
+-	int flags = block == DOWAIT_BLOCK ? 0 : WNOHANG;
++	int flags = WNOHANG;
+ 	int err;
+ 
+ #if JOBS
+ 	if (jobctl)
+ 		flags |= WUNTRACED;
+ #endif
+-
+-	do {
++	/* PS5's SIGCHLD/wait3 notification path is incomplete. Poll waitpid,
++	 * which also handles children that exit before a handler is delivered.
++	 * A shell wait builtin remains interruptible by a pending trap. */
++	for (;;) {
+ 		gotsigchld = 0;
+-		do
+-#ifdef HAVE_WAIT3
+-			err = wait3(status, flags, NULL);
+-#else
+-			err = waitpid((pid_t)-1, status, flags, NULL);
+-#endif
+-		while (err < 0 && errno == EINTR);
+-
+-		if (err || (err = -!block))
+-			break;
+-
+-		sigblockall(&oldmask);
+-
+-		while (!gotsigchld && !pending_sig)
+-			sigsuspend(&oldmask);
+-
+-		sigclearmask();
+-	} while (gotsigchld);
+-
+-	return err;
++		err = waitpid((pid_t)-1, status, flags);
++		if (err < 0 && errno == EINTR)
++			continue;
++		if (err)
++			return err;
++		if (!block)
++			return -1;
++		if (block != DOWAIT_BLOCK && pending_sig)
++			return 0;
++		usleep(10000);
++	}
+ }
+ 
+ /*

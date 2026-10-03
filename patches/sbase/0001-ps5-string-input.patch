@@ -1,0 +1,119 @@
+diff --git a/grep.c b/grep.c
+index 8ca6d51..0940021 100644
+--- a/grep.c
++++ b/grep.c
+@@ -59,6 +59,15 @@ addpattern(const char *pattern)
+ 	}
+ }
+ 
++static void
++addpatternstring(const char *patterns)
++{
++	char *copy = enstrdup(Error, patterns), *cursor = copy, *line;
++	while ((line = strsep(&cursor, "\n")))
++		addpattern(line);
++	free(copy);
++}
++
+ static void
+ addpatternfile(FILE *fp)
+ {
+@@ -175,10 +184,7 @@ main(int argc, char *argv[])
+ 		break;
+ 	case 'e':
+ 		arg = EARGF(usage());
+-		if (!(fp = fmemopen(arg, strlen(arg) + 1, "r")))
+-			eprintf("fmemopen:");
+-		addpatternfile(fp);
+-		efshut(fp, arg);
++		addpatternstring(arg);
+ 		eflag = 1;
+ 		break;
+ 	case 'f':
+@@ -225,10 +231,7 @@ main(int argc, char *argv[])
+ 
+ 	/* just add literal pattern to list */
+ 	if (!eflag && !fflag) {
+-		if (!(fp = fmemopen(argv[0], strlen(argv[0]) + 1, "r")))
+-			eprintf("fmemopen:");
+-		addpatternfile(fp);
+-		efshut(fp, argv[0]);
++		addpatternstring(argv[0]);
+ 		argc--;
+ 		argv++;
+ 	}
+diff --git a/libutil/fshut.c b/libutil/fshut.c
+index e596f07..6aedef3 100644
+--- a/libutil/fshut.c
++++ b/libutil/fshut.c
+@@ -14,14 +14,19 @@ fshut(FILE *fp, const char *fname)
+ 	 * Leave it unchecked and rely on the following
+ 	 * functions to detect errors.
+ 	 */
+-	fflush(fp);
++	if (fflush(fp) && fp != stdin) {
++		weprintf("fflush %s:", fname);
++		ret = 1;
++	}
+ 
+ 	if (ferror(fp) && !ret) {
+ 		weprintf("ferror %s:", fname);
+ 		ret = 1;
+ 	}
+ 
+-	if (fclose(fp) && !ret) {
++	/* PS5 libc refuses fclose on its three protected standard FILE objects.
++	 * Flush and check them above; process exit releases their descriptors. */
++	if (fp != stdin && fp != stdout && fp != stderr && fclose(fp) && !ret) {
+ 		weprintf("fclose %s:", fname);
+ 		ret = 1;
+ 	}
+diff --git a/sed.c b/sed.c
+index 0847194..b5b9d9d 100644
+--- a/sed.c
++++ b/sed.c
+@@ -369,7 +369,8 @@ usage(void)
+ static void
+ compile(char *s, int isfile)
+ {
+-	FILE *f;
++	FILE *f = NULL;
++	char *copy = NULL, *cursor = NULL;
+ 
+ 	if (isfile) {
+ 		f = fopen(s, "r");
+@@ -378,13 +379,19 @@ compile(char *s, int isfile)
+ 	} else {
+ 		if (!*s) /* empty string script */
+ 			return;
+-		f = fmemopen(s, strlen(s), "r");
+-		if (!f)
+-			eprintf("fmemopen:");
++		copy = cursor = estrdup(s);
+ 	}
+ 
+ 	/* NOTE: get arg functions can't use genbuf */
+-	while (read_line(f, &genbuf) != EOF) {
++	for (;;) {
++		if (f) {
++			if (read_line(f, &genbuf) == EOF)
++				break;
++		} else {
++			if (!cursor || !*cursor)
++				break;
++			stracpy(&genbuf, strsep(&cursor, "\n"));
++		}
+ 		s = genbuf.str;
+ 
+ 		/* if the first two characters of the script are "#n" default output shall be suppressed */
+@@ -430,7 +437,9 @@ compile(char *s, int isfile)
+ 		}
+ 	}
+ 
+-	fshut(f, s);
++	if (f)
++		fshut(f, s);
++	free(copy);
+ }
+ 
+ /* FIXME: if we decide to honor lack of trailing newline, set/clear a global

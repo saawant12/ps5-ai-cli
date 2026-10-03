@@ -22,7 +22,8 @@ descriptor-ownership patch in patches/mio.
 
 shsrv ELF loader
 ----------------
-The loader diagnostic links elfldr.c and pt.c from ps5-payload-dev/shsrv.
+The native command backend and loader diagnostic link elfldr.c and pt.c from
+ps5-payload-dev/shsrv.
 
 Upstream: https://github.com/ps5-payload-dev/shsrv
 Revision: 6f320637d56d344a0e7797753099e33238bbf146
@@ -93,3 +94,22 @@ Upstream: https://github.com/JetBrains/JetBrainsMono, tag v2.304.
 The unmodified regular and bold webfonts are embedded for offline terminal use.
 License: SIL Open Font License 1.1; see LICENSES/JetBrainsMono-OFL.txt.
 Their SHA-256 hashes are recorded in sources.lock.json.
+
+Dash shell
+----------
+Upstream: https://git.kernel.org/pub/scm/utils/dash/dash.git
+Revision: 037bbdfd330017c368caf6242f977974123239b5 (v0.5.13.5)
+License: BSD three-clause; the linked signal-table generator output is
+GPL-2.0-or-later. See LICENSES/Dash-COPYING and LICENSES/GPL-3.0.txt.
+The local patch replaces vfork with fork and routes SDK payload execution
+through the explicit PS5 command proxy. Original source notices are retained.
+
+sbase file tools
+----------------
+Upstream: https://git.suckless.org/sbase
+Revision: c546c3a5724c81cee9a11d816a38ccdf17472129
+License: MIT and file-specific notices; see LICENSES/Sbase-LICENSE and
+LICENSES/Sbase-NOTICES.
+platform/runtime-tools.txt selects the applets included by tools/build-shell.sh.
+The local patch adapts string input and protected standard streams to PS5 libc.
+Source files and library components retain their original notices.

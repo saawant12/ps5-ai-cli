@@ -1,0 +1,407 @@
+diff --git a/codex-rs/utils/pty/src/child.rs b/codex-rs/utils/pty/src/child.rs
+index dfb6ff2..01b77d0 100644
+--- a/codex-rs/utils/pty/src/child.rs
++++ b/codex-rs/utils/pty/src/child.rs
+@@ -15,6 +15,10 @@ use tokio::process::ChildStdout;
+ #[path = "posix_child.rs"]
+ pub(super) mod posix;
+ 
++#[cfg(target_env = "ps5")]
++#[path = "ps5_child.rs"]
++pub(super) mod posix;
++
+ #[cfg(unix)]
+ #[path = "child_reaper.rs"]
+ pub(super) mod reaper;
+@@ -34,7 +38,7 @@ pub(super) enum ChildKind {
+         child: Option<tokio::process::Child>,
+         reaper: std::sync::mpsc::Sender<reaper::ChildToReap>,
+     },
+-    #[cfg(any(target_os = "macos", target_os = "linux"))]
++    #[cfg(any(target_env = "ps5", target_os = "macos", target_os = "linux"))]
+     Native(posix::NativeChild),
+ }
+ 
+@@ -46,7 +50,7 @@ impl Child {
+             ChildKind::TokioReapOnly { child, .. } => {
+                 child.as_ref().and_then(tokio::process::Child::id)
+             }
+-            #[cfg(any(target_os = "macos", target_os = "linux"))]
++            #[cfg(any(target_env = "ps5", target_os = "macos", target_os = "linux"))]
+             ChildKind::Native(child) => child.id(),
+         }
+     }
+@@ -64,7 +68,7 @@ impl Child {
+                     .wait()
+                     .await
+             }
+-            #[cfg(any(target_os = "macos", target_os = "linux"))]
++            #[cfg(any(target_env = "ps5", target_os = "macos", target_os = "linux"))]
+             ChildKind::Native(child) => child.wait().await,
+         }
+     }
+@@ -114,7 +118,7 @@ impl Child {
+                     .kill()
+                     .await
+             }
+-            #[cfg(any(target_os = "macos", target_os = "linux"))]
++            #[cfg(any(target_env = "ps5", target_os = "macos", target_os = "linux"))]
+             ChildKind::Native(child) => child.kill().await,
+         }
+     }
+diff --git a/codex-rs/utils/pty/src/child_command.rs b/codex-rs/utils/pty/src/child_command.rs
+index 452e3ec..2b53e08 100644
+--- a/codex-rs/utils/pty/src/child_command.rs
++++ b/codex-rs/utils/pty/src/child_command.rs
+@@ -17,6 +17,7 @@ use std::process::Stdio as TokioStdio;
+ use winapi::um::winbase::CREATE_NO_WINDOW;
+ 
+ use crate::child::Child;
++#[cfg(not(target_env = "ps5"))]
+ use crate::child::ChildKind;
+ 
+ /// Relationship between a child and its parent's session and process group.
+@@ -256,7 +257,14 @@ impl Command {
+         Ok(())
+     }
+ 
++    #[cfg(target_env = "ps5")]
++    pub fn spawn(self) -> io::Result<Child> {
++        self.validate()?;
++        crate::child::posix::NativeChild::spawn(&self)
++    }
++
+     /// Launch with native platform settings and the existing compatibility fallback.
++    #[cfg(not(target_env = "ps5"))]
+     pub fn spawn(mut self) -> io::Result<Child> {
+         #[cfg(unix)]
+         self.validate()?;
+diff --git a/codex-rs/utils/pty/src/child_reaper.rs b/codex-rs/utils/pty/src/child_reaper.rs
+index 46f25ad..e25827e 100644
+--- a/codex-rs/utils/pty/src/child_reaper.rs
++++ b/codex-rs/utils/pty/src/child_reaper.rs
+@@ -5,7 +5,7 @@
+ //! ownership until reaped, so one live child cannot delay cleanup of another.
+ 
+ use std::io;
+-#[cfg(any(target_os = "macos", target_os = "linux"))]
++#[cfg(any(target_env = "ps5", target_os = "macos", target_os = "linux"))]
+ use std::ptr;
+ use std::sync::Mutex;
+ use std::sync::PoisonError;
+@@ -14,7 +14,7 @@ use std::time::Duration;
+ 
+ /// Exclusive ownership transferred by a child handle after its caller drops it.
+ pub(crate) enum ChildToReap {
+-    #[cfg(any(target_os = "macos", target_os = "linux"))]
++    #[cfg(any(target_env = "ps5", target_os = "macos", target_os = "linux"))]
+     Native(libc::pid_t),
+     Tokio(tokio::process::Child),
+ }
+@@ -47,7 +47,7 @@ pub(crate) fn sender() -> io::Result<mpsc::Sender<ChildToReap>> {
+                 // Amortize scans across bursts without starving reaping when drops continue.
+                 pending.extend(receiver.try_iter().take(REAP_BATCH_SIZE - 1));
+                 pending.retain_mut(|child| match child {
+-                    #[cfg(any(target_os = "macos", target_os = "linux"))]
++                    #[cfg(any(target_env = "ps5", target_os = "macos", target_os = "linux"))]
+                     ChildToReap::Native(pid) => {
+                         // SAFETY: Drop transferred exclusive ownership of this PID.
+                         let result = unsafe { libc::waitpid(*pid, ptr::null_mut(), libc::WNOHANG) };
+diff --git a/codex-rs/utils/pty/src/pty.rs b/codex-rs/utils/pty/src/pty.rs
+index 035fad8..f924a4f 100644
+--- a/codex-rs/utils/pty/src/pty.rs
++++ b/codex-rs/utils/pty/src/pty.rs
+@@ -153,6 +153,13 @@ pub async fn spawn_process(
+     size: TerminalSize,
+     inherited_fds: ChildFds<'_>,
+ ) -> Result<SpawnedProcess> {
++    if cfg!(target_env = "ps5") {
++        return Err(std::io::Error::new(
++            std::io::ErrorKind::Unsupported,
++            "PS5 does not provide kernel PTYs; run this command without a TTY",
++        )
++        .into());
++    }
+     if program.is_empty() {
+         anyhow::bail!("missing program for PTY spawn");
+     }
+diff --git a/codex-rs/utils/pty/src/ps5_child.rs b/codex-rs/utils/pty/src/ps5_child.rs
+new file mode 100644
+index 0000000..b759cfa
+--- /dev/null
++++ b/codex-rs/utils/pty/src/ps5_child.rs
+@@ -0,0 +1,274 @@
++//! SDK payload children on PS5. The kernel cannot exec these ELF files.
++//! A bounded native loader receives explicit context without changing the
++//! parent's cwd/environment or invoking Rust after a multithreaded fork.
++
++use std::ffi::CString;
++use std::ffi::OsStr;
++use std::io;
++use std::os::fd::AsRawFd;
++use std::os::fd::OwnedFd;
++use std::os::unix::ffi::OsStrExt;
++use std::os::unix::process::ExitStatusExt;
++use std::process::ExitStatus;
++use std::ptr;
++use std::sync::mpsc;
++use std::time::Duration;
++
++use tokio::process::ChildStderr;
++use tokio::process::ChildStdin;
++use tokio::process::ChildStdout;
++
++use crate::child::reaper;
++use crate::child_command::ChildDropPolicy;
++
++unsafe extern "C" {
++    fn ps5_spawn_sdk(
++        path: *const libc::c_char,
++        argv: *const *mut libc::c_char,
++        envp: *const *mut libc::c_char,
++        cwd: *const libc::c_char,
++        input: libc::c_int,
++        output: libc::c_int,
++        error: libc::c_int,
++        fds: *const libc::c_int,
++        fd_count: usize,
++        process_mode: libc::c_int,
++    ) -> libc::pid_t;
++}
++
++pub(crate) struct NativeChild {
++    pid: Option<libc::pid_t>,
++    status: Option<ExitStatus>,
++    drop_policy: ChildDropPolicy,
++    reaper: mpsc::Sender<reaper::ChildToReap>,
++}
++
++impl NativeChild {
++    pub(crate) fn spawn(request: &crate::Command) -> io::Result<crate::Child> {
++        let command = request.inner.as_std();
++        let program = command.get_program();
++        if program.is_empty() {
++            return Err(io::Error::from_raw_os_error(libc::ENOENT));
++        }
++        let parent_cwd = std::env::current_dir()?;
++        let cwd = command.get_current_dir().unwrap_or(&parent_cwd);
++        let cwd = parent_cwd.join(cwd);
++        let cwd_string = c_string(cwd.as_os_str())?;
++        let args = std::iter::once(request.arg0.as_deref().unwrap_or(program))
++            .chain(command.get_args())
++            .map(c_string)
++            .collect::<io::Result<Vec<_>>>()?;
++        let argv = pointers(&args);
++        let env = command
++            .get_envs()
++            .filter_map(|(key, value)| value.map(|value| (key, value)))
++            .map(|(key, value)| {
++                if key.is_empty() || key.as_bytes().contains(&b'=') {
++                    return Err(io::Error::new(
++                        io::ErrorKind::InvalidInput,
++                        "invalid environment key",
++                    ));
++                }
++                let mut entry = key.to_os_string();
++                entry.push("=");
++                entry.push(value);
++                c_string(&entry)
++            })
++            .collect::<io::Result<Vec<_>>>()?;
++        let envp = pointers(&env);
++        let candidates = if program.as_bytes().contains(&b'/') {
++            vec![cwd.join(program)]
++        } else {
++            let path = command
++                .get_envs()
++                .find_map(|(key, value)| (key == "PATH").then_some(value).flatten())
++                .ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?;
++            std::env::split_paths(path)
++                .map(|dir| cwd.join(dir).join(program))
++                .collect()
++        };
++        let candidates = candidates
++            .iter()
++            .map(|path| c_string(path.as_os_str()))
++            .collect::<io::Result<Vec<_>>>()?;
++
++        // Reserve cleanup before launch, including for kill-on-drop children.
++        // Drop never allocates a thread or depends on a still-running Tokio loop.
++        let reaper = reaper::sender()?;
++        let mut inherited_fds = request.inherited_fds.clone();
++        if request.descriptor_policy == crate::DescriptorPolicy::Inherit {
++            // Capture ambient inheritance before creating the command's pipes.
++            // Callers needing strict isolation use Explicit (including Codex tools).
++            let limit = unsafe { libc::getdtablesize() };
++            if limit < 0 {
++                return Err(io::Error::last_os_error());
++            }
++            for fd in 3..limit {
++                // SAFETY: fcntl checks descriptor numbers without dereferencing them.
++                let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
++                if flags >= 0 && flags & libc::FD_CLOEXEC == 0 && !inherited_fds.contains(&fd) {
++                    inherited_fds.push(fd);
++                }
++            }
++        }
++        if inherited_fds.len() > 64 {
++            return Err(io::Error::from_raw_os_error(libc::E2BIG));
++        }
++        let (input, stdin) = match &request.stdin {
++            crate::ChildStdin::Piped => {
++                let (reader, writer) = io::pipe()?;
++                (
++                    OwnedFd::from(reader),
++                    Some(ChildStdin::from_std(OwnedFd::from(writer).into())?),
++                )
++            }
++            crate::ChildStdin::Null => (std::fs::File::open("/dev/null")?.into(), None),
++            crate::ChildStdin::File(fd) => (fd.try_clone()?, None),
++        };
++        let (stdout_read, output) = child_output(request.stdout_file.as_ref())?;
++        let (stderr_read, error) = child_output(request.stderr_file.as_ref())?;
++        let stdout = stdout_read
++            .map(|fd| ChildStdout::from_std(fd.into()))
++            .transpose()?;
++        let stderr = stderr_read
++            .map(|fd| ChildStderr::from_std(fd.into()))
++            .transpose()?;
++        let mode = match request.process_mode {
++            crate::ProcessMode::Inherit => 0,
++            crate::ProcessMode::NewGroup => 1,
++            crate::ProcessMode::NewSession => 2,
++        };
++        let mut failure = io::Error::from_raw_os_error(libc::ENOENT);
++        for candidate in candidates {
++            // SAFETY: Every string, pointer array and owned descriptor lives
++            // through this synchronous call. The loader retains no references.
++            let pid = unsafe {
++                ps5_spawn_sdk(
++                    candidate.as_ptr(),
++                    argv.as_ptr(),
++                    envp.as_ptr(),
++                    cwd_string.as_ptr(),
++                    input.as_raw_fd(),
++                    output.as_raw_fd(),
++                    error.as_raw_fd(),
++                    inherited_fds.as_ptr(),
++                    inherited_fds.len(),
++                    mode,
++                )
++            };
++            if pid > 0 {
++                return Ok(crate::Child {
++                    inner: crate::child::ChildKind::Native(Self {
++                        pid: Some(pid),
++                        status: None,
++                        drop_policy: request.drop_policy,
++                        reaper,
++                    }),
++                    stdin,
++                    stdout,
++                    stderr,
++                });
++            }
++            let error = io::Error::last_os_error();
++            match error.raw_os_error() {
++                Some(libc::ENOENT | libc::ENOTDIR) => {}
++                Some(libc::EACCES) => failure = error,
++                // Do not retry an unsupported ELF via the kernel's fork/exec.
++                _ => return Err(error),
++            }
++        }
++        Err(failure)
++    }
++
++    pub(crate) fn id(&self) -> Option<u32> {
++        self.pid.map(|pid| pid as u32)
++    }
++
++    fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
++        if self.status.is_some() {
++            return Ok(self.status);
++        }
++        let pid = self
++            .pid
++            .ok_or_else(|| io::Error::from_raw_os_error(libc::ECHILD))?;
++        let mut status = 0;
++        // SAFETY: This handle exclusively owns the unreaped PID.
++        match unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) } {
++            0 => Ok(None),
++            -1 => {
++                let error = io::Error::last_os_error();
++                if error.raw_os_error() == Some(libc::ECHILD) {
++                    self.pid = None;
++                }
++                Err(error)
++            }
++            _ => {
++                self.pid = None;
++                self.status = Some(ExitStatus::from_raw(status));
++                Ok(self.status)
++            }
++        }
++    }
++
++    pub(crate) async fn wait(&mut self) -> io::Result<ExitStatus> {
++        loop {
++            match self.try_wait() {
++                Ok(Some(status)) => return Ok(status),
++                Ok(None) => {}
++                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
++                Err(error) => return Err(error),
++            }
++            // PS5's signal notification support is incomplete. Poll only this
++            // owned PID; cancellation leaves ownership in the handle.
++            tokio::time::sleep(Duration::from_millis(10)).await;
++        }
++    }
++
++    pub(crate) async fn kill(&mut self) -> io::Result<()> {
++        let _ = self.try_wait();
++        if let Some(pid) = self.pid {
++            // SAFETY: An unreaped child retains its PID, even after exit.
++            if unsafe { libc::kill(pid, libc::SIGKILL) } < 0
++                && io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
++            {
++                return Err(io::Error::last_os_error());
++            }
++        }
++        self.wait().await.map(|_| ())
++    }
++}
++
++impl Drop for NativeChild {
++    fn drop(&mut self) {
++        let _ = self.try_wait();
++        let Some(pid) = self.pid.take() else { return };
++        if matches!(self.drop_policy, ChildDropPolicy::KillAndReap) {
++            // SAFETY: Ownership has not been transferred or reaped yet.
++            unsafe {
++                libc::kill(pid, libc::SIGKILL);
++            }
++        }
++        let _ = self.reaper.send(reaper::ChildToReap::Native(pid));
++    }
++}
++
++fn c_string(value: &OsStr) -> io::Result<CString> {
++    CString::new(value.as_bytes())
++        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "nul byte in process context"))
++}
++
++fn pointers(values: &[CString]) -> Vec<*mut libc::c_char> {
++    values
++        .iter()
++        .map(|value| value.as_ptr().cast_mut())
++        .chain(std::iter::once(ptr::null_mut()))
++        .collect()
++}
++
++fn child_output(file: Option<&OwnedFd>) -> io::Result<(Option<OwnedFd>, OwnedFd)> {
++    if let Some(file) = file {
++        return Ok((None, file.try_clone()?));
++    }
++    let (reader, writer) = io::pipe()?;
++    Ok((Some(reader.into()), writer.into()))
++}

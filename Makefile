@@ -44,19 +44,24 @@ codex-check:
 
 codex-build:
 	python3 tools/prepare-mio.py
+	python3 tools/fetch-loader.py
 	docker run --rm -v "$(ROOT):/work" $(IMAGE) tools/check-codex.sh build
 
 upload-probe: test
 	@test -n "$(MANAGER)" || (echo 'Set MANAGER=http://PS5_IP:8084'; exit 1)
 	python3 tools/payload.py build/ps5-rust-runtime-probe.elf --manager "$(MANAGER)" --run
 
-.PHONY: terminal-ui terminal-dev terminal-host terminal-test
+.PHONY: terminal-ui terminal-sources terminal-dev terminal-host terminal-test
+terminal-sources:
+	python3 tools/fetch-loader.py
+	python3 tools/fetch-shell.py
+
 terminal-ui:
 	npm ci --prefix web --ignore-scripts --no-audit --no-fund
 	python3 tools/embed-ui.py
 	python3 tools/embed-launcher.py
 
-terminal-dev: terminal-ui
+terminal-dev: terminal-ui terminal-sources
 	docker run --rm --network none -v "$(ROOT):/work" $(IMAGE) tools/build-terminal.sh
 
 terminal-host: terminal-ui
@@ -66,10 +71,10 @@ terminal-test: terminal-host
 	python3 tools/ui/test_gateway.py
 
 .PHONY: terminal terminal-release
-terminal: terminal-ui
+terminal: terminal-ui terminal-sources
 	python3 tools/prepare-mio.py
 	docker run --rm -v "$(ROOT):/work" $(IMAGE) tools/check-codex.sh terminal
 
-terminal-release: terminal-ui
+terminal-release: terminal-ui terminal-sources
 	python3 tools/prepare-mio.py
 	docker run --rm -v "$(ROOT):/work" $(IMAGE) tools/check-codex.sh terminal-release

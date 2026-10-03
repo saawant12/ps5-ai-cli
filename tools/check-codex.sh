@@ -26,6 +26,15 @@ python3 tools/prepare-rust-std.py
 python3 tools/prepare-mio.py
 if [[ "$mode" != check ]]; then
   mkdir -p /work/build
+  python3 tools/fetch-loader.py --offline
+  for name in sdk-elf sdk-spawn; do
+    /opt/ps5-payload-sdk/bin/prospero-clang -O2 -Wall -Wextra -Werror -c \
+      "platform/$name.c" -o "/work/build/runtime-$name.o"
+  done
+  for name in elfldr pt; do
+    /opt/ps5-payload-sdk/bin/prospero-clang -O2 -Wall -Werror -c \
+      "vendor/shsrv/$name.c" -o "/work/build/runtime-$name.o"
+  done
   /opt/ps5-payload-sdk/bin/prospero-clang -O2 -Wall -Wextra -Werror -c \
     /work/platform/freebsd11.c -o /work/build/ps5-compat.o
   /opt/ps5-payload-sdk/bin/prospero-clang -c /work/platform/syscalls.S -o /work/build/ps5-syscalls.o
@@ -44,7 +53,7 @@ if [[ "$mode" == terminal || "$mode" == terminal-release ]]; then
   export PS5_BUILD_PROFILE=debug
   if [[ "$mode" == terminal-release ]]; then export PS5_BUILD_PROFILE=release; fi
   export PS5_NATIVE_DIR="/work/build/native-$PS5_BUILD_PROFILE"
-  PS5_COMPILE_ONLY=1 tools/build-terminal.sh
+  PS5_COMPILE_ONLY=1 bash tools/build-terminal.sh
   cargo_mode=rustc
   # External C sources are not Cargo inputs. A deterministic final-crate link
   # argument invalidates only the CLI artifact when those sources change.

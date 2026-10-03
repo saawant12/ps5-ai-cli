@@ -54,11 +54,13 @@
     },
     "patch": {
       "path": "patches/loader/0001-explicit-spawn-context.patch",
-      "sha256": "08c51faf631a02bbac7b4eecd66eaa6f7673e19759afb87d093f5c96e32b8d87"
+      "sha256": "30ee29c73e4716e9098176f3715ac2b15de8664d6f65a869c0ea549f85e78194"
     },
     "patched_files": {
-      "elfldr.c": "f3caaba6021d5a6db276f20b3677f8c68e37917cd450ac67a3e4077acdb9b4e7",
-      "elfldr.h": "0d42802647d623cb04381d89727932a0df31720bd959d5f34f0ac0cff3f47ccc"
+      "elfldr.c": "71469689d72cf92992029cb0376da233740e96ded13e80a3e8cd621b08c1438f",
+      "elfldr.h": "af38ba58d834db40c1a22d07ebdc004d76d7e7cf74d6cfc713a83ce0b7b7e50a",
+      "pt.c": "e979a40ee9a3208d338149bfbb58775d8942344cc80cefdb6d588bc07b0644c4",
+      "pt.h": "880b1ad4ce517b7902311a7bacf010cac7ca0b5a0b86aab023c1970067fd5902"
     }
   },
   "ca_bundle": {
@@ -75,5 +77,16 @@
       "web/fonts/JetBrainsMono-Bold.woff2": "c503cc5ec5f8b2c7666b7ecda1adf44bd45f2e6579b2eba0fc292150416588a2",
       "LICENSES/JetBrainsMono-OFL.txt": "30f0c136e3c88e422d0791acd97238870f9054a9729bc34cf2ff0d4ed8cac4ad"
     }
+  },
+  "dash": {
+    "repository": "https://git.kernel.org/pub/scm/utils/dash/dash.git",
+    "tag": "v0.5.13.5",
+    "commit": "037bbdfd330017c368caf6242f977974123239b5",
+    "license": "BSD-3-Clause with GPL-2.0-or-later signal generator"
+  },
+  "sbase": {
+    "repository": "https://git.suckless.org/sbase",
+    "commit": "c546c3a5724c81cee9a11d816a38ccdf17472129",
+    "license": "MIT and file-specific licenses"
   }
 }

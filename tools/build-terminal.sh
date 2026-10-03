@@ -8,11 +8,19 @@ if [[ "${PS5_COMPILE_ONLY:-0}" != 1 ]]; then export PS5_BUILD_ORIGIN=captured; f
 python3 tools/embed-ui.py
 python3 tools/embed-launcher.py
 python3 tools/embed-ca.py
+PS5_TOOL_TRACE=0 bash tools/build-shell.sh
+python3 tools/embed-runtime.py
 python3 tools/terminal-build-id.py
 cc=/opt/ps5-payload-sdk/bin/prospero-clang
 includes=(-I/opt/ps5-payload-sdk/target/user/homebrew/include -Ibuild -Ilauncher)
-for name in gateway http websocket native-terminal runtime-image trust-store; do
+for name in gateway http websocket native-terminal runtime-image runtime-tools trust-store; do
   "$cc" -O2 -Wall -Wextra -Werror "${includes[@]}" -c "app/$name.c" -o "$PS5_NATIVE_DIR/terminal-$name.o"
+done
+for name in sdk-elf sdk-spawn; do
+  "$cc" -O2 -Wall -Wextra -Werror -c "platform/$name.c" -o "$PS5_NATIVE_DIR/runtime-$name.o"
+done
+for name in elfldr pt; do
+  "$cc" -O2 -Wall -Werror -c "vendor/shsrv/$name.c" -o "$PS5_NATIVE_DIR/runtime-$name.o"
 done
 for name in install platform_ps5; do
   "$cc" -O2 -Wall -Wextra -Werror "${includes[@]}" -c "launcher/$name.c" -o "$PS5_NATIVE_DIR/launcher-$name.o"

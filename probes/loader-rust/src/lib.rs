@@ -1,11 +1,15 @@
 //! Run native child-launch checks while Tokio workers and timers remain active.
 use std::ffi::{CStr, CString, c_char};
+use std::os::unix::ffi::OsStrExt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
+mod native_command;
+mod native_pipe;
 
 unsafe extern "C" {
     fn ps5_probe_spawn_loader(directory: *const c_char, mode: i32) -> i32;
+    fn ps5_probe_has_shell() -> i32;
 }
 
 /// # Safety
@@ -16,6 +20,7 @@ pub unsafe extern "C" fn ps5_rust_loader_probe(directory: *const c_char) -> i32 
         return 1;
     }
     let directory = unsafe { CStr::from_ptr(directory) }.to_owned();
+    println!("Rust loader: creating runtime");
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .thread_stack_size(16 * 1024 * 1024)
@@ -28,7 +33,8 @@ pub unsafe extern "C" fn ps5_rust_loader_probe(directory: *const c_char) -> i32 
             return 1;
         }
     };
-    runtime.block_on(async move {
+    println!("Rust loader: runtime created");
+    let result = runtime.block_on(async move {
         let parent_env = std::env::var_os("PS5_PROBE_VALUE");
         let parent_cwd = std::env::current_dir().ok();
         let ticks = Arc::new(AtomicUsize::new(0));
@@ -48,7 +54,26 @@ pub unsafe extern "C" fn ps5_rust_loader_probe(directory: *const c_char) -> i32 
         }
         let started = ticks.load(Ordering::Acquire);
         let mut failed = false;
-        for mode in [0, 1, 2] {
+        if unsafe { ps5_probe_has_shell() } != 0 {
+            let path = std::path::Path::new(std::ffi::OsStr::from_bytes(directory.to_bytes()));
+            if let Err(error) = native_command::run(path).await {
+                println!("Codex native Command: FAIL: {error}");
+                failed = true;
+            }
+        }
+        if unsafe { ps5_probe_has_shell() } != 0 && !failed {
+            let path = std::path::Path::new(std::ffi::OsStr::from_bytes(directory.to_bytes()));
+            if let Err(error) = native_pipe::run(path).await {
+                println!("Codex native pipe: FAIL: {error}");
+                failed = true;
+            }
+        }
+        let mut modes = vec![0, 1, 2, 3, 4];
+        if unsafe { ps5_probe_has_shell() } != 0 {
+            modes.push(5);
+            modes.extend([6, 6, 6]);
+        }
+        for mode in modes {
             let child_directory: CString = directory.clone();
             let result = tokio::task::spawn_blocking(move || unsafe {
                 ps5_probe_spawn_loader(child_directory.as_ptr(), mode)
@@ -77,5 +102,9 @@ pub unsafe extern "C" fn ps5_rust_loader_probe(directory: *const c_char) -> i32 
             if failed { "FAIL" } else { "PASS" }
         );
         i32::from(failed)
-    })
+    });
+    println!("Rust loader: shutting down runtime");
+    drop(runtime);
+    println!("Rust loader: runtime stopped");
+    result
 }

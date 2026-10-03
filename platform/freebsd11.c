@@ -92,3 +92,4 @@ ssize_t getrandom(void *buffer, size_t size, unsigned flags) {
 #include "fd-compat.c"
 #include "executable-path.c"
 #include "clock-sleep.c"
+#include "string-compat.c"
