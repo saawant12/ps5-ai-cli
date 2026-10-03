@@ -1,0 +1,41 @@
+--- a/src/sys/unix/selector/kqueue.rs
++++ b/src/sys/unix/selector/kqueue.rs
+@@ -64,11 +64,16 @@
+     };
+ }
+ 
++#[cfg(target_env = "ps5")]
++type QueueFd = std::sync::Arc<OwnedFd>;
++#[cfg(not(target_env = "ps5"))]
++type QueueFd = OwnedFd;
++
+ #[derive(Debug)]
+ pub struct Selector {
+     #[cfg(debug_assertions)]
+     id: usize,
+-    kq: OwnedFd,
++    kq: QueueFd,
+ }
+ 
+ impl Selector {
+@@ -79,12 +84,18 @@
+         Ok(Selector {
+             #[cfg(debug_assertions)]
+             id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
+-            kq,
++            kq: kq.into(),
+         })
+     }
+ 
+     pub fn try_clone(&self) -> io::Result<Selector> {
+-        self.kq.try_clone().map(|kq| Selector {
++        // PS5 rejects F_DUPFD_CLOEXEC (errno 45). Share ownership of the
++        // existing close-on-exec queue instead of a non-atomic dup/fcntl pair.
++        #[cfg(target_env = "ps5")]
++        let kq = std::sync::Arc::clone(&self.kq);
++        #[cfg(not(target_env = "ps5"))]
++        let kq = self.kq.try_clone()?;
++        Ok(Selector {
+             // It's the same selector, so we use the same id.
+             #[cfg(debug_assertions)]
+             id: self.id,

@@ -1,0 +1,145 @@
+diff --git a/elfldr.c b/elfldr.c
+index 2a398ce..e9a92d4 100644
+--- a/elfldr.c
++++ b/elfldr.c
+@@ -15,6 +15,7 @@ along with this program; see the file COPYING. If not, see
+ <http://www.gnu.org/licenses/>.  */
+ 
+ #include <elf.h>
++#include <errno.h>
+ #include <fcntl.h>
+ #include <netinet/in.h>
+ #include <signal.h>
+@@ -26,6 +27,7 @@ along with this program; see the file COPYING. If not, see
+ #include <sys/mman.h>
+ #include <sys/ptrace.h>
+ #include <sys/socket.h>
++#include <sys/stat.h>
+ #include <sys/syscall.h>
+ #include <sys/sysctl.h>
+ 
+@@ -455,6 +457,10 @@ elfldr_set_cwd(pid_t pid, const char* cwd) {
+   if(!cwd) {
+     cwd = "/";
+   }
++  if(strlen(cwd) >= PAGE_SIZE) {
++    errno = ENAMETOOLONG;
++    return -1;
++  }
+ 
+   if((buf=pt_mmap(pid, 0, PAGE_SIZE, PROT_READ | PROT_WRITE,
+ 		  MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)) == -1) {
+@@ -462,12 +468,31 @@ elfldr_set_cwd(pid_t pid, const char* cwd) {
+     return -1;
+   }
+ 
+-  pt_copyin(pid, cwd, buf, strlen(cwd)+1);
+-  pt_syscall(pid, SYS_chdir, buf);
+-  pt_msync(pid, buf, PAGE_SIZE, MS_SYNC);
++  int error = pt_copyin(pid, cwd, buf, strlen(cwd)+1);
++  if(error) {
++    perror("elfldr_set_cwd copy");
++  } else {
++    /* SDK credential setup has not run in the child yet. Use only the
++     * creator's existing capabilities for chdir, then restore the child's. */
++    uint8_t saved_caps[16], parent_caps[16];
++    if(kernel_get_ucred_caps(pid, saved_caps) ||
++       kernel_get_ucred_caps(getpid(), parent_caps) ||
++       kernel_set_ucred_caps(pid, parent_caps)) {
++      error = -1;
++    } else {
++      long result = pt_syscall(pid, SYS_chdir, buf);
++      if(result != 0) {
++        printf("elfldr_set_cwd syscall returned %ld\n", result);
++        pt_perror(pid, "elfldr_set_cwd");
++        error = -1;
++      }
++      if(kernel_set_ucred_caps(pid, saved_caps)) error = -1;
++    }
++  }
+   pt_munmap(pid, buf, PAGE_SIZE);
+ 
+-  return 0;
++  if(error) errno = EIO;
++  return error;
+ }
+ 
+ 
+@@ -645,20 +670,26 @@ elfldr_rfork_entry(void* ctx) {
+  * Execute an ELF inside a new process.
+  **/
+ pid_t
+-elfldr_spawn(int stdin_fd, int stdout_fd, int stderr_fd,
+-	     uint8_t* elf, char** argv) {
++elfldr_spawn_env(int stdin_fd, int stdout_fd, int stderr_fd,
++                uint8_t* elf, char** argv, char** envp, const char* cwd) {
+   uint8_t int3instr = 0xcc;
+-  char buf[PATH_MAX];
+   struct kevent evt;
+   intptr_t brkpoint;
+   uint8_t orginstr;
+   pid_t pid = -1;
+   void *stack;
+-  char* cwd;
+   int kq;
+ 
+-  if(!(cwd=getenv("PWD"))) {
+-    cwd = getcwd(buf, sizeof(buf));
++  /* Validate context before creating a child. The caller retains ownership. */
++  if(!argv || !argv[0] || !cwd) {
++    errno = EINVAL;
++    return -1;
++  }
++  struct stat cwd_info;
++  if(stat(cwd, &cwd_info)) return -1;
++  if(!S_ISDIR(cwd_info.st_mode)) {
++    errno = ENOTDIR;
++    return -1;
+   }
+ 
+   if((kq=kqueue()) < 0) {
+@@ -758,8 +789,14 @@ elfldr_spawn(int stdin_fd, int stdout_fd, int stderr_fd,
+ 
+   // Execute the ELF
+   elfldr_set_procname(pid, argv[0]);
+-  elfldr_set_environ(pid, environ);
+-  elfldr_set_cwd(pid, cwd);
++  if(elfldr_set_environ(pid, envp) || elfldr_set_cwd(pid, cwd)) {
++    int error = errno ? errno : EIO;
++    pt_detach(pid, SIGKILL);
++    kill(pid, SIGKILL);
++    while(waitpid(pid, 0, 0) < 0 && errno == EINTR) {}
++    errno = error;
++    return -1;
++  }
+ 
+   if(elfldr_exec(stdin_fd, stdout_fd, stderr_fd, pid, elf)) {
+     return -1;
+@@ -768,3 +805,12 @@ elfldr_spawn(int stdin_fd, int stdout_fd, int stderr_fd,
+   return pid;
+ }
+ 
++/* Preserve the upstream interface for its existing callers. */
++pid_t
++elfldr_spawn(int stdin_fd, int stdout_fd, int stderr_fd,
++             uint8_t* elf, char** argv) {
++  char buf[PATH_MAX];
++  const char* cwd = getenv("PWD");
++  if(!cwd && !(cwd = getcwd(buf, sizeof(buf)))) return -1;
++  return elfldr_spawn_env(stdin_fd, stdout_fd, stderr_fd, elf, argv, environ, cwd);
++}
+diff --git a/elfldr.h b/elfldr.h
+index aa60817..bc491c5 100644
+--- a/elfldr.h
++++ b/elfldr.h
+@@ -25,6 +25,10 @@ along with this program; see the file COPYING. If not, see
+ pid_t elfldr_spawn(int stdin_fd, int stdout_fd, int stderr_fd,
+ 		   uint8_t *elf, char* argv[]);
+ 
++/* PS5 AI CLI extension: explicit context without mutating parent globals. */
++pid_t elfldr_spawn_env(int stdin_fd, int stdout_fd, int stderr_fd,
++                      uint8_t *elf, char *argv[], char *envp[], const char *cwd);
++
+ 
+ /**
+  * Execute an ELF inside the process with the given pid.

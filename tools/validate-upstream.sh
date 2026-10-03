@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd /work
+export RUSTUP_TOOLCHAIN=1.95.0 RUSTC_BOOTSTRAP=1
+export CARGO_HOME=/work/.cache/cargo
+export CARGO_TARGET_DIR=/work/build/host-validation
+export CARGO_PROFILE_DEV_DEBUG=0 CARGO_BUILD_JOBS=1
+export CARGO_UNSTABLE_LOCKFILE_PATH=true
+export CARGO_RESOLVER_LOCKFILE_PATH=/work/locks/host/Cargo.lock
+mkdir -p locks/host
+if [[ ! -f locks/host/Cargo.lock ]]; then
+  cp locks/codex/Cargo.lock locks/host/Cargo.lock
+fi
+git config --global --add safe.directory /work/vendor/codex
+case "${1:-test}" in
+  test)
+    cd vendor/codex/codex-rs
+    just test -p codex-keyring-store -p codex-rmcp-client --locked
+    ;;
+  test-remote)
+    cd vendor/codex/codex-rs
+    cargo build -p codex-cli --bin codex --locked
+    just test -p codex-rmcp-client --test streamable_http_remote --locked
+    ;;
+  fmt)
+    cd vendor/codex/codex-rs
+    just fmt
+    ;;
+  lock)
+    cd vendor/codex
+    just bazel-lock-update
+    ;;
+  *) echo 'Usage: tools/validate-upstream.sh [test|test-remote|fmt|lock]' >&2; exit 2 ;;
+esac

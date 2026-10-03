@@ -1,0 +1,50 @@
+{
+  "target": {
+    "firmware": "13.60",
+    "loader": "Relapse / elfldr",
+    "hardware_verified": false,
+    "rust_runtime_probe_verified": true,
+    "rust_async_runtime_verified": true,
+    "codex_version_verified": true,
+    "codex_service_initialization_verified": true,
+    "codex_service_auth_verified": true,
+    "native_elf_child_launch_verified": true,
+    "native_elf_child_launch_with_tokio_verified": true
+  },
+  "codex": {
+    "repository": "https://github.com/openai/codex.git",
+    "tag": "rust-v0.160.0",
+    "commit": "a956835d020762cb2b570053af06f643a11c0ecc",
+    "rust": "1.95.0"
+  },
+  "sdk": {
+    "repository": "https://github.com/ps5-payload-dev/sdk",
+    "tag": "v0.43",
+    "sha256": "a9cc9929f21b2b2c5d5b309f3bab4997067c45281c0622cf4838b1aecba66fcb"
+  },
+  "mio": {
+    "version": "1.2.0",
+    "checksum": "50b7e5b27aa02a74bac8c3f23f448f8d87ff11f92d3aac1a6ed369ee08cc56c1",
+    "patch": "patches/mio/0001-ps5-share-kqueue.patch"
+  },
+  "loader": {
+    "repository": "https://github.com/ps5-payload-dev/shsrv.git",
+    "commit": "6f320637d56d344a0e7797753099e33238bbf146",
+    "license": "GPL-3.0-or-later",
+    "files": {
+      "elfldr.c": "9759d5baa8fed32e9a036a9fc3a46c125bb2f4f222466e8a2e56c1a77e1e7c0e",
+      "elfldr.h": "929b4010f21184fb9efccaffa5b191abbae99e57008e21a8376f6c5c4b5547ba",
+      "pt.c": "8c68a9f42b73a2cc9626a18cb675fe0af6ca0471c49779a15ed84c5fc79d654d",
+      "pt.h": "4df144f3499d40b65a8ea236a6735d4640dda70070c0bba71514ec0735cd9210",
+      "LICENSE": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    "patch": {
+      "path": "patches/loader/0001-explicit-spawn-context.patch",
+      "sha256": "08c51faf631a02bbac7b4eecd66eaa6f7673e19759afb87d093f5c96e32b8d87"
+    },
+    "patched_files": {
+      "elfldr.c": "f3caaba6021d5a6db276f20b3677f8c68e37917cd450ac67a3e4077acdb9b4e7",
+      "elfldr.h": "0d42802647d623cb04381d89727932a0df31720bd959d5f34f0ac0cff3f47ccc"
+    }
+  }
+}

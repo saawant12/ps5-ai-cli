@@ -1,0 +1,17 @@
+FROM ps5-ai-cli:rust1.95
+ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=clang
+ENV CC=clang CXX=clang++ HOST_CC=clang HOST_CXX=clang++ CARGO_BUILD_JOBS=4
+RUN apt-get update && apt-get install -y --no-install-recommends just pkg-config libdbus-1-dev python3-venv unzip && rm -rf /var/lib/apt/lists/*
+RUN rustup component add rustfmt clippy
+RUN cargo install --locked --version 0.9.146 cargo-nextest && cargo install --locked --version 0.5.7 dotslash
+RUN python3 -m venv /opt/format-tools && /opt/format-tools/bin/pip install uv==0.12.22
+ENV PATH=/opt/format-tools/bin:$PATH
+RUN cd /tmp && \
+    curl -fLO https://github.com/bazelbuild/bazel/releases/download/9.0.0/bazel-9.0.0-linux-arm64 && \
+    curl -fLO https://github.com/bazelbuild/bazel/releases/download/9.0.0/bazel-9.0.0-linux-arm64.sha256 && \
+    sha256sum -c bazel-9.0.0-linux-arm64.sha256 && \
+    install -m 755 bazel-9.0.0-linux-arm64 /usr/local/bin/bazel && \
+    rm bazel-9.0.0-linux-arm64 bazel-9.0.0-linux-arm64.sha256
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+RUN ln -s /usr/lib/llvm-19/bin/ld.lld /usr/lib/llvm-19/bin/ld
+ENV CARGO_BUILD_JOBS=1

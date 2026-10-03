@@ -1,0 +1,65 @@
+Original project code is licensed under GPL-3.0-or-later. Third-party source
+and patch context retain their original copyright and license notices.
+This source repository does not redistribute prebuilt runtime binaries.
+
+OpenAI Codex
+------------
+Upstream: https://github.com/openai/codex
+Revision: a956835d020762cb2b570053af06f643a11c0ecc (rust-v0.160.0)
+Copyright 2025 OpenAI
+License: Apache License 2.0; see LICENSES/Apache-2.0.txt and LICENSES/Codex-NOTICE.
+tools/fetch-codex.py retrieves the pinned source and applies patches/codex.
+The upstream source includes additional third-party notices and dependencies.
+
+Mio
+---
+Upstream: https://github.com/tokio-rs/mio
+Version: 1.2.0
+Copyright (c) 2014 Carl Lerche and other MIO contributors
+License: MIT; see LICENSES/Mio-LICENSE.
+tools/prepare-mio.py verifies the crate checksum and applies the local kqueue
+descriptor-ownership patch in patches/mio.
+
+shsrv ELF loader
+----------------
+The loader diagnostic links elfldr.c and pt.c from ps5-payload-dev/shsrv.
+
+Upstream: https://github.com/ps5-payload-dev/shsrv
+Revision: 6f320637d56d344a0e7797753099e33238bbf146
+Copyright (C) 2024 John Törnblom
+License: GNU General Public License, version 3 or (at your option) any later version.
+
+tools/fetch-loader.py retrieves these sources, their headers, and the upstream
+LICENSE into vendor/shsrv and verifies the checksums in sources.lock.json.
+The upstream copyright and license notices are preserved in the source files.
+patches/loader/0001-explicit-spawn-context.patch adds explicit child environment
+and working-directory arguments and propagates working-directory failures.
+It temporarily applies the creator's existing capabilities to the child's
+working-directory change before SDK startup, then restores the child's values.
+Include the applicable license and corresponding source when distributing a
+binary that incorporates this loader.
+
+BSD compatibility functions
+---------------------------
+platform/getpeereid.c: Copyright (c) 2001 Dima Dorfman, BSD two-clause license.
+platform/lockf.c: Copyright (c) 1997 The NetBSD Foundation, Inc., derived from
+software contributed by Klaus Klein, BSD two-clause license.
+The full copyright notices, conditions and disclaimers are preserved in these
+source files and apply to these files independently of the project license.
+
+External build and runtime dependencies
+--------------------------------------
+Rust 1.95.0: https://github.com/rust-lang/rust
+The Rust standard library is provided under MIT or Apache-2.0 terms, with
+component-specific notices in its source distribution. tools/prepare-rust-std.py
+applies a narrow FreeBSD ABI field conversion to the installed source.
+
+PS5 Payload SDK 0.43: https://github.com/ps5-payload-dev/sdk
+The SDK is an external build prerequisite. Its repository contains the GNU GPL
+version 3 and file-specific notices for its components. Preserve the applicable
+notices for the SDK runtime and any libraries incorporated into a binary.
+
+Cargo dependency versions are recorded in the checked-in lockfiles. Licenses
+for transitive crates and external OpenSSL/curl libraries remain their own.
+This file describes the source tree; it is not a complete notice inventory for
+a future binary distribution.
