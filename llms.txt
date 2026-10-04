@@ -2,13 +2,13 @@
 
 > An experimental PlayStation 5 homebrew launcher for native AI coding CLIs. Open the PS5 AI CLI home-screen icon, choose Codex, and use its own terminal with a controller or a paired phone or computer.
 
-The official project is https://github.com/saawant12/ps5-ai-cli. The repository contains the application source, build tools, upstream patches and documentation. The first public beta is being prepared; no downloadable release is available yet. Development builds are for testing.
+The official project is https://github.com/saawant12/ps5-ai-cli. The repository contains the application source, build tools, upstream patches and documentation. The first experimental public beta is v0.1.0-beta.1. Its release includes the installable ps5-ai-cli.elf, checksums, build identity, corresponding sources and third-party notices.
 
 OpenAI Codex is the first available CLI. Claude Code, Antigravity and Devin are unavailable placeholders for future integrations. The terminal-style selector opens one CLI and does not add conversation or session management. Restart CLI stops the current CLI task and starts a fresh process without clearing saved sign-in or files; it leaves the launcher running. Native Codex startup and restart with saved sign-in have passed on the tested PS5. Codex retains its own sign-in, prompts and approvals.
 
 PS5 AI CLI requires a jailbroken PS5 capable of loading homebrew ELF payloads. The tested environment is PS5 firmware 13.60 with Relapse / elfldr and Payload Manager v0.5.2, running Codex 0.160.0. Other firmware and loader combinations are unverified.
 
-Install and run the development ELF through Payload Manager, then open the PS5 AI CLI home-screen icon and choose Codex. The icon opens an already-running payload; it does not start the payload. Reboot and auto-start behavior remain unverified.
+Download ps5-ai-cli.elf from the v0.1.0-beta.1 release and run it through Payload Manager, then open the PS5 AI CLI home-screen icon and choose Codex. The icon opens an already-running payload; it does not start the payload. Reboot and auto-start behavior remain unverified.
 
 Physical D-pad/X confirmation and on-screen keyboard entry have passed on PS5. A USB or Bluetooth keyboard connected directly to the console remains unverified. Computer keyboard input and phone-sized layouts have passed host-browser tests.
 
@@ -16,7 +16,7 @@ Phone and computer access uses http://PS5_IP:8035/ on the same local network. En
 
 Device-code sign-in, saved sign-in after a payload restart, and a model reply have passed on PS5. Separate native tests passed command and pipe interfaces, shell pipelines, file edits and bundled shell/tool installation. A model-driven coding smoke test also passed: creating, running and editing a shell script, then verifying exact output for explicit and default arguments. Broader project workflows and toolchains remain unverified.
 
-Codex saves sign-in data in /data/ps5-ai-cli/home/.codex and starts in /data/ps5-ai-cli/workspace. Closing the browser or replacing the payload preserves saved sign-in unless the user signs out or deletes the saved data. The launcher does not supply an AI account or subscription. Internet access and working DNS are required for sign-in and model responses.
+Codex saves sign-in data in /data/ps5-ai-cli/home/.codex and starts in /data/ps5-ai-cli/workspace. Closing the browser or replacing the payload preserves saved sign-in unless the user signs out or deletes the saved data. The launcher does not supply an AI account or subscription. Internet access and working DNS are required for sign-in, startup account checks and model responses. If startup reports workspace routing discovery failed, restore connectivity and use Restart CLI.
 
 Restart the identifiable PS5 AI CLI payload after changing the console's Wi-Fi or LAN settings if the app becomes unreachable. Launching another copy does not restart an existing instance. Leave unrelated payloads running. PS5 AI CLI has a separate shortcut, port and data directory from Orbit Store.
 
@@ -32,7 +32,7 @@ Original project code is GPL-3.0-or-later; dependencies retain their own licence
 
 ## Releases and support
 
-- [Release status](https://github.com/saawant12/ps5-ai-cli/releases): Published builds and release notes when available. No public beta is currently published.
+- [Download v0.1.0-beta.1](https://github.com/saawant12/ps5-ai-cli/releases/tag/v0.1.0-beta.1): Experimental beta payload, release notes, checksums, source and notices.
 - [Issues](https://github.com/saawant12/ps5-ai-cli/issues): Report the version or build ID, firmware, loader and reproduction steps. Exclude pairing codes, sign-in codes, credentials and private prompt content.
 
 ## Optional

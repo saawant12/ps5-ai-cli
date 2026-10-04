@@ -20,7 +20,9 @@ make terminal
 The SDK bootstrap verifies the archive hashes in `sources.lock.json`, installs
 LLVM 19 and cross-compiles OpenSSL/curl. No sibling repository or private Docker
 image is required. Downloads require internet access on the build machine;
-the console can remain offline for startup and terminal testing.
+the console can remain offline for launcher and local terminal diagnostics.
+Codex's signed-in startup checks and model requests require working internet
+access and DNS on the console.
 
 Use `make terminal-release` for the optimized ELF. For development diagnostics,
 run `make probe`, `make test`, `make codex-check`, or `make codex-build`.

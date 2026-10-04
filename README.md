@@ -9,7 +9,7 @@ to jailbroken PlayStation 5 consoles. Open the home-screen icon, choose Codex fr
 and use its own terminal interface. Enter text with your controller or connect
 from a phone or computer on the same network.
 
-[Release status](https://github.com/saawant12/ps5-ai-cli/releases) ·
+[Download beta](https://github.com/saawant12/ps5-ai-cli/releases/tag/v0.1.0-beta.1) ·
 [Setup and controls](#getting-started) ·
 [Report a problem](https://github.com/saawant12/ps5-ai-cli/issues) ·
 [llms.txt](llms.txt)
@@ -39,8 +39,9 @@ The launcher opens one CLI and leaves conversations and approvals to that CLI.
 
 ## Beta status
 
-**The first public beta is being prepared. No downloadable release is available
-yet.** You can [build the development version](docs/DEVELOPMENT.md) to help test.
+**[Download v0.1.0-beta.1](https://github.com/saawant12/ps5-ai-cli/releases/tag/v0.1.0-beta.1)**,
+the first experimental public beta. Install `ps5-ai-cli.elf`; the release also
+includes checksums, build details, corresponding sources and third-party notices.
 
 On the tested PS5, the home-screen shortcut, device-code sign-in, saved sign-in
 after a payload restart, a model reply, physical X confirmation and D-pad/X text
@@ -49,8 +50,8 @@ file edits and bundled tool installation. A model-driven coding smoke test also
 passed: creating a shell script, running it, editing it, and checking its outputs
 on the console. The updated build also passed native Codex
 startup and CLI restart with saved sign-in. The terminal selector, Backspace
-and icon migration pass local checks; their updated presentation still needs
-confirmation on the TV.
+and icon migration pass local checks. The persistent six-digit pairing panel
+has also been used on PS5 to connect a computer browser.
 
 Testing currently covers **PS5 firmware 13.60**, **Relapse / elfldr** and
 **Payload Manager v0.5.2**, with **Codex 0.160.0**. Other firmware and loader
@@ -60,13 +61,15 @@ been tested in host browsers.
 
 ## Getting started
 
-For now, these steps apply to a development build. You need a jailbroken PS5
-capable of loading homebrew ELF payloads. Keep the console awake and give it
-working internet and DNS access for Codex sign-in and model responses.
+You need a jailbroken PS5 capable of loading homebrew ELF payloads. Keep the
+console awake and give it working internet and DNS access for Codex startup,
+sign-in and model responses.
 
-1. **Install and run the payload.** Build `ps5-ai-cli.elf` using the
-   [developer guide](docs/DEVELOPMENT.md), install it in Payload Manager, and run
-   it once. A successful startup adds the **PS5 AI CLI** home-screen icon.
+1. **Install and run the payload.** Download
+   [ps5-ai-cli.elf](https://github.com/saawant12/ps5-ai-cli/releases/download/v0.1.0-beta.1/ps5-ai-cli.elf),
+   install it in Payload Manager, and run it once. A successful startup adds
+   the **PS5 AI CLI** home-screen icon. You can also
+   [build from source](docs/DEVELOPMENT.md).
 2. **Open the icon.** Choose **Codex** in the CLI picker.
 3. **Sign in through Codex.** For device-code sign-in, follow the address and
    code shown by Codex on another device.
@@ -165,6 +168,9 @@ Store. You do not need to remove Orbit to use it.
 - **“Failed to request device code”:** check the console's internet connection
   and DNS resolver before retrying. A loopback DNS address requires a running
   local resolver.
+- **“Workspace routing discovery failed” during Codex startup:** restore the
+  console's internet connection and DNS, then use **Restart CLI**. Codex checks
+  its account connection at startup even when your sign-in is saved.
 - **The terminal disconnected:** choose **Reconnect** to attach to a running
   CLI, or **Restart CLI** if Codex has exited or stopped responding. If the whole
   payload is unavailable, start it through Payload Manager.
