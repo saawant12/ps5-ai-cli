@@ -181,6 +181,10 @@ Leave out pairing codes, sign-in codes, credentials and private prompt content.
 
 ## Current limits
 
+Reopening the TV app or attaching from a fresh browser can show the live prompt
+without restoring earlier terminal output. The CLI continues running, but full
+screen/history restoration is not reliable in this beta.
+
 Codex is the only available CLI. A small shell coding task has passed; broader
 project workflows remain unverified. Commands use a bundled native shell and file tools; interactive
 child programs that require a kernel PTY are unsupported. Ordinary Linux or
