@@ -115,6 +115,39 @@ $('pair-form').onsubmit = async event => {
   catch (error) { $('pair-error').textContent = error.message; }
 };
 $('pair-dialog').addEventListener('cancel', event => event.preventDefault());
+let deviceTimer = null, deviceRequest = 0;
+async function showDeviceCode() {
+  const current = ++deviceRequest;
+  $('device-code').textContent = '…';
+  $('device-expiry').textContent = 'Getting a code…';
+  $('device-renew').disabled = true;
+  clearInterval(deviceTimer);
+  try {
+    const data = await request('/api/pairing-code', '');
+    if (current !== deviceRequest || !$('device-dialog').open) return;
+    const expires = Date.now() + data.expires_in * 1000;
+    $('device-code').textContent = `${data.code.slice(0, 3)} ${data.code.slice(3)}`;
+    const update = () => {
+      const seconds = Math.max(0, Math.ceil((expires - Date.now()) / 1000));
+      $('device-expiry').textContent = seconds ? `Valid for ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : 'Code expired. Select New code to try again.';
+      if (!seconds) { $('device-code').textContent = 'Expired'; clearInterval(deviceTimer); }
+    };
+    update(); deviceTimer = setInterval(update, 1000);
+  } catch (error) { if (current === deviceRequest) { $('device-code').textContent = '—'; $('device-expiry').textContent = error.message; } }
+  finally { if (current === deviceRequest) $('device-renew').disabled = false; }
+}
+$('pair-device').onclick = () => {
+  $('device-dialog').showModal();
+  controllerFocus = $('device-close'); controllerFocus.focus();
+  showDeviceCode();
+};
+$('device-renew').onclick = showDeviceCode;
+$('device-close').onclick = () => $('device-dialog').close();
+$('device-dialog').addEventListener('close', () => {
+  deviceRequest++;
+  clearInterval(deviceTimer); $('device-code').textContent = '';
+  controllerFocus = $('pair-device'); controllerFocus.focus();
+});
 for (const button of document.querySelectorAll('[data-key]')) button.onclick = () => { send(keyBytes[button.dataset.key]); terminal?.focus(); };
 $('keyboard-button').onclick = () => {
   $('keyboard-dialog').showModal();
@@ -197,7 +230,8 @@ function controllerAction(button, source, now = performance.now()) {
   const dialog = document.querySelector('dialog[open]');
   const inTerminal = terminal && !$('terminal-view').hidden;
   if (dialog) {
-    if (button === 1 && dialog.id === 'keyboard-dialog') activateControl($('keyboard-close'));
+    if (button === 1 && dialog.id === 'device-dialog') activateControl($('device-close'));
+    else if (button === 1 && dialog.id === 'keyboard-dialog') activateControl($('keyboard-close'));
     else if (button === 0) {
       const focused = controllerFocus && dialog.contains(controllerFocus) ? controllerFocus : document.activeElement;
       if (focused?.tagName === 'BUTTON') activateControl(focused);
@@ -277,7 +311,7 @@ window.addEventListener('keydown', event => {
   document.body.classList.add('controller-input');
   if (event.key === 'Tab') controllerFocus = null;
   if (!$('picker').hidden && !document.querySelector('dialog[open]') && ['ArrowUp','ArrowDown'].includes(event.key)) {
-    const choices = Array.from(document.querySelectorAll('.cli-option:not(:disabled)'));
+    const choices = Array.from(document.querySelectorAll('#pair-device:not([hidden]), .cli-option:not(:disabled)'));
     const selectedIndex = choices.indexOf(document.activeElement);
     const step = event.key === 'ArrowDown' ? 1 : -1;
     const next = choices[(selectedIndex + step + choices.length) % choices.length];
@@ -303,6 +337,7 @@ window.addEventListener('keydown', event => {
       catch (_) { /* Remote clients still pair using the notification code. */ }
     }
     $('connection').textContent = paired ? 'PS5 connected' : 'Pair your device';
+    $('pair-device').hidden = !(paired && consoleMode);
     if (!paired) $('pair-dialog').showModal(); else focusPicker();
   } catch (error) { $('connection').textContent = 'Unavailable'; notice(error.message); }
 })();

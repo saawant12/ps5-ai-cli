@@ -12,7 +12,7 @@ Install and run the development ELF through Payload Manager, then open the PS5 A
 
 Physical D-pad/X confirmation and on-screen keyboard entry have passed on PS5. A USB or Bluetooth keyboard connected directly to the console remains unverified. Computer keyboard input and phone-sized layouts have passed host-browser tests.
 
-Phone and computer access uses http://PS5_IP:8035/ on the same local network. Enter the eight-digit pairing code from the PS5 notification. One browser controls the terminal at a time. Browser pairing is separate from Codex device-code sign-in.
+Phone and computer access uses http://PS5_IP:8035/ on the same local network. Enter the six-digit code from Pair device in the PS5 app. The panel stays open until closed; New code refreshes the 15-minute code without restarting Codex or disconnecting paired devices. One browser controls the terminal at a time. Browser pairing is separate from Codex device-code sign-in.
 
 Device-code sign-in, saved sign-in after a payload restart, and a model reply have passed on PS5. Separate native tests passed command and pipe interfaces, shell pipelines, file edits and bundled shell/tool installation. A model-driven coding smoke test also passed: creating, running and editing a shell script, then verifying exact output for explicit and default arguments. Broader project workflows and toolchains remain unverified.
 

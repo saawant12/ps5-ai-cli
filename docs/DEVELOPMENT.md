@@ -189,8 +189,12 @@ recovery, and preservation of saved data and unrelated files.
 
 Release payloads must come from `make terminal-release` with development pairing
 disabled (the default). The build forces command tracing off. A release build
-uses a fresh eight-digit pairing code each time the gateway starts. The code
+uses a fresh six-digit pairing code each time the gateway starts. The code
 accepts remote pairing for 15 minutes; paired browser sessions last eight hours.
+The console-only Pair device panel displays and renews the code without restarting
+the gateway or CLI. Its endpoint requires a paired session, matching Origin,
+client header, empty POST body and a loopback peer; remote paired browsers
+cannot retrieve or renew it.
 The PS5's local shortcut pairs through the loopback-only endpoint.
 
 Keep build logs, device details and test workspaces out of published archives.

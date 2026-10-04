@@ -66,16 +66,20 @@ static void json_reply(int fd, int status, const char *body) {
     ui_reply(fd, status, "application/json", body, strlen(body), NULL);
 }
 
+static int local_peer(int fd) {
+    struct sockaddr_in peer = {0};
+    socklen_t size = sizeof(peer);
+    return !getpeername(fd, (struct sockaddr *)&peer, &size) &&
+        peer.sin_family == AF_INET && ntohl(peer.sin_addr.s_addr) == INADDR_LOOPBACK;
+}
+
 static void pair(int fd, const struct ui_request *r, int local_console) {
     if (!ui_same_origin(r) || strcmp(r->client, "1")) {
         json_reply(fd, 403, "{\"error\":\"Open this page directly on your console's address.\"}"); return;
     }
     if (local_console) {
-        struct sockaddr_in peer = {0};
-        socklen_t size = sizeof(peer);
         /* A URL query or Host header cannot grant local-console access. */
-        if (r->length || getpeername(fd, (struct sockaddr *)&peer, &size) ||
-            peer.sin_family != AF_INET || ntohl(peer.sin_addr.s_addr) != INADDR_LOOPBACK) {
+        if (r->length || !local_peer(fd)) {
             json_reply(fd, 403, "{\"error\":\"Use the pairing code on remote devices.\"}"); return;
         }
     }
@@ -87,9 +91,9 @@ static void pair(int fd, const struct ui_request *r, int local_console) {
     if (!local_console && now < server.blocked_until) {
         status = 429; body = "{\"error\":\"Too many attempts. Wait 30 seconds and try again.\"}";
     } else if (!local_console && now > server.pair_deadline) {
-        status = 403; body = "{\"error\":\"Pairing expired. Relaunch PS5 AI CLI to get a new code.\"}";
+        status = 403; body = "{\"error\":\"Pairing expired. Open Pair device on the PS5 for a new code.\"}";
     } else if (!local_console && (r->length != strlen(server.pair_code) || !equal(r->body, server.pair_code, r->length))) {
-        status = 401; body = "{\"error\":\"That pairing code is incorrect. Check the PS5 notification.\"}";
+        status = 401; body = "{\"error\":\"That pairing code is incorrect. Check Pair device on the PS5.\"}";
         if (++server.failures >= 5) { server.blocked_until = now + 30; server.failures = 0; }
     } else {
         int slot = -1;
@@ -208,6 +212,19 @@ static void handle(int fd) {
     pthread_mutex_lock(&server.lock);
     int session = session_index(r.cookie);
     pthread_mutex_unlock(&server.lock);
+    if (!strcmp(r.path, "/api/pairing-code") && !strcmp(r.method, "POST")) {
+        if (session < 0 || !ui_same_origin(&r) || strcmp(r.client, "1") || r.length || !local_peer(fd)) {
+            json_reply(fd, 403, "{\"error\":\"Open Pair device in the PS5 home-screen app.\"}"); return;
+        }
+        char data[80];
+        pthread_mutex_lock(&server.lock);
+        snprintf(server.pair_code, sizeof(server.pair_code), "%06u", arc4random_uniform(1000000));
+        server.pair_deadline = time(NULL) + 15 * 60;
+        server.failures = 0; server.blocked_until = 0;
+        snprintf(data, sizeof(data), "{\"code\":\"%s\",\"expires_in\":900}", server.pair_code);
+        pthread_mutex_unlock(&server.lock);
+        json_reply(fd, 200, data); return;
+    }
     if (!strcmp(r.path, "/api/cli/codex/restart") && !strcmp(r.method, "POST")) {
         if (session < 0 || !ui_same_origin(&r) || strcmp(r.client, "1") || r.length) {
             json_reply(fd, 403, "{\"error\":\"Pair this device and open the app directly before restarting.\"}"); return;
@@ -307,11 +324,11 @@ static void *accept_main(void *unused) {
 }
 
 int ps5_ui_start(const struct ui_config *config) {
-    if (!config || !config->pair_code || strlen(config->pair_code) != 8 || !config->attach || !config->resize || !config->detach) { errno = EINVAL; return -1; }
+    if (!config || !config->pair_code || strlen(config->pair_code) != 6 || !config->attach || !config->resize || !config->detach) { errno = EINVAL; return -1; }
     server.port = config->port;
     server.config = *config;
     server.fixture = config->fixture;
-    memcpy(server.pair_code, config->pair_code, 9);
+    memcpy(server.pair_code, config->pair_code, 7);
     server.pair_deadline = time(NULL) + 15 * 60;
     server.listener = socket(AF_INET, SOCK_STREAM, 0);
     if (server.listener < 0) return -1;

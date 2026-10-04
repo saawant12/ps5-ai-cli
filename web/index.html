@@ -13,7 +13,7 @@
   <script src="/app.js" defer></script>
 </head>
 <body>
-  <header><a href="/" class="brand"><span aria-hidden="true">&gt;_</span> PS5 AI CLI</a><span id="connection" role="status">Connecting</span><button id="disconnect" hidden>Disconnect</button></header>
+  <header><a href="/" class="brand"><span aria-hidden="true">&gt;_</span> PS5 AI CLI</a><span id="connection" role="status">Connecting</span><button id="pair-device" hidden>Pair device</button><button id="disconnect" hidden>Disconnect</button></header>
   <div id="fixture" class="notice" hidden>LOCAL TERMINAL TEST · Not running on PS5</div>
   <div id="notice" class="notice" role="alert" hidden></div>
   <main id="picker">
@@ -34,7 +34,8 @@
     <div class="controller-help">D-pad Move · X Confirm · Keyboard for text entry</div>
     <div class="keys" aria-label="Terminal keys"><button data-key="esc">Esc</button><button data-key="tab">Tab</button><button data-key="up" aria-label="Up arrow">↑</button><button data-key="down" aria-label="Down arrow">↓</button><button data-key="left" aria-label="Left arrow">←</button><button data-key="right" aria-label="Right arrow">→</button><button data-key="interrupt">Ctrl+C</button><button data-key="enter">Enter</button></div>
   </main>
-  <dialog id="pair-dialog" aria-labelledby="pair-title"><h2 id="pair-title">Connect to your PS5</h2><p>Enter the pairing code from the PS5 notification.</p><form id="pair-form"><label for="pair-code">Pairing code</label><input id="pair-code" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" autocomplete="off" required placeholder="00000000"><p id="pair-error" class="error" role="alert"></p><button type="submit" class="primary">Connect</button></form></dialog>
+  <dialog id="pair-dialog" aria-labelledby="pair-title"><h2 id="pair-title">Connect to your PS5</h2><p>Open <strong>Pair device</strong> in the PS5 app, then enter its six-digit code here.</p><form id="pair-form"><label for="pair-code">Pairing code</label><input id="pair-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" required placeholder="000000"><p id="pair-error" class="error" role="alert"></p><button type="submit" class="primary">Connect</button></form></dialog>
+  <dialog id="device-dialog" aria-labelledby="device-title"><h2 id="device-title">Pair your phone or computer</h2><p>Open this PS5's address on port <strong>8035</strong> in a browser on the same network, then enter this code.</p><output id="device-code" aria-label="Device pairing code">…</output><p id="device-expiry" role="status"></p><p>This panel stays open until you close it. Already paired devices stay connected.</p><div class="keyboard-actions"><button id="device-close" class="primary">Close</button><button id="device-renew">New code</button></div></dialog>
   <dialog id="keyboard-dialog" aria-labelledby="keyboard-title"><h2 id="keyboard-title">Terminal keyboard</h2><textarea id="keyboard-text" aria-label="Text to type in terminal" rows="3" spellcheck="false"></textarea><div id="keyboard-grid" class="keyboard-grid"></div><div class="keyboard-actions"><button id="keyboard-close">Close</button><button id="keyboard-send" class="primary">Type text</button><button id="keyboard-enter">Enter ↵</button></div></dialog>
 </body>
 </html>

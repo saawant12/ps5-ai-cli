@@ -74,9 +74,9 @@ int __wrap_main(int argc, char **argv) {
     if (setenv("TMPDIR", PS5_AI_STATE "/tmp", 1) || ps5_install_trust_store() ||
         ps5_configure_runtime_tools()) return 1;
     signal(SIGPIPE, SIG_IGN);
-    char code[9]; snprintf(code, sizeof(code), "%08u", arc4random_uniform(100000000));
+    char code[7]; snprintf(code, sizeof(code), "%06u", arc4random_uniform(1000000));
 #ifdef PS5_DEV_PAIRING
-    memcpy(code, PS5_DEV_PAIR_CODE, sizeof(code));
+    snprintf(code, sizeof(code), "%.6s", PS5_DEV_PAIR_CODE);
 #endif
     if (ps5_cli_prepare()) return 1;
     struct ui_config config = {.port = PS5_AI_PORT, .pair_code = code,

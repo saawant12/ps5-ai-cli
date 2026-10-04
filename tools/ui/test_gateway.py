@@ -1,8 +1,10 @@
 """Integration checks that start an isolated local terminal gateway per test."""
 import http.client
+import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import time
 import tempfile
 import socket
@@ -12,7 +14,7 @@ import unittest
 
 HOST = '127.0.0.1:8035'
 ORIGIN = 'http://' + HOST
-CODE = '24681357'
+CODE = '246813'
 
 class GatewayTests(unittest.TestCase):
     def setUp(self):
@@ -68,6 +70,12 @@ class GatewayTests(unittest.TestCase):
     def test_wrong_code_rejected(self):
         self.assertEqual(self.request('POST', '/api/pair', '99999999', {'Origin': ORIGIN, 'X-PS5-Client': '1'})[0], 401)
 
+    def test_pairing_attempts_are_rate_limited(self):
+        headers = {'Origin': ORIGIN, 'X-PS5-Client': '1'}
+        for _ in range(5):
+            self.assertEqual(self.request('POST', '/api/pair', '000000', headers)[0], 401)
+        self.assertEqual(self.request('POST', '/api/pair', CODE, headers)[0], 429)
+
     def test_unpaired_websocket_rejected(self):
         self.assertEqual(self.request('GET', '/terminal/codex?cols=80&rows=24', headers={'Origin': ORIGIN})[0], 401)
 
@@ -91,6 +99,37 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(status, 200)
         cookie = headers['Set-Cookie'].split(';')[0]
         self.assertIn(b'"paired":true', self.request('GET', '/api/status', headers={'Cookie': cookie})[2])
+
+    def test_console_pairing_panel_renews_code_and_preserves_session(self):
+        base = {'Origin': ORIGIN, 'X-PS5-Client': '1'}
+        _, response, _ = self.request('POST', '/api/pair-local', '', base)
+        headers = {**base, 'Cookie': response['Set-Cookie'].split(';')[0]}
+        for invalid in ({}, base, {'Cookie': headers['Cookie'], 'Origin': ORIGIN},
+                        {**headers, 'Origin': 'https://attacker.example'}):
+            self.assertEqual(self.request('POST', '/api/pairing-code', '', invalid)[0], 403)
+        self.assertEqual(self.request('POST', '/api/pairing-code', 'unexpected', headers)[0], 403)
+        self.assertEqual(self.request('GET', '/api/pairing-code', headers=headers)[0], 404)
+        status, _, body = self.request('POST', '/api/pairing-code', '', headers)
+        self.assertEqual(status, 200)
+        code = json.loads(body)
+        self.assertRegex(code['code'], r'^\d{6}$')
+        self.assertEqual(code['expires_in'], 900)
+        self.assertEqual(self.request('POST', '/api/pair', code['code'], base)[0], 200)
+        self.assertIn(b'"paired":true', self.request('GET', '/api/status', headers=headers)[2])
+        if code['code'] != CODE:
+            self.assertEqual(self.request('POST', '/api/pair', CODE, base)[0], 401)
+        try:
+            remote = http.client.HTTPConnection('127.0.0.1', self.port, timeout=3,
+                                                source_address=('127.0.0.2', 0))
+            remote.request('POST', '/api/pairing-code', '',
+                           {**headers, 'X-Forwarded-For': '127.0.0.1'})
+            response = remote.getresponse()
+            self.assertEqual(response.status, 403)
+            response.read(); remote.close()
+        except OSError as error:
+            if not sys.platform.startswith('linux') and error.errno == 49:
+                return  # macOS may not have the second loopback address.
+            raise
 
     def test_connection_upgrade_must_be_a_header_token(self):
         _, result, _ = self.request('POST', '/api/pair', CODE, {'Origin': ORIGIN, 'X-PS5-Client': '1'})

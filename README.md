@@ -80,8 +80,10 @@ your payload manager before opening the icon. Auto-start has not been verified.
 ### From your phone or computer
 
 While the payload is running, visit `http://PS5_IP:8035/` on the same local
-network, replacing `PS5_IP` with your console's address. Enter the **eight-digit
-pairing code** from the PS5 notification, then choose **Codex**.
+network, replacing `PS5_IP` with your console's address. Enter the **six-digit
+pairing code** shown in **Pair device** in the PS5 app, then choose **Codex**.
+The panel stays open until you close it. Its code lasts 15 minutes; choose
+**New code** to replace it without restarting Codex or disconnecting paired devices.
 
 This browser pairing code connects your device to the console. Codex's
 device-code sign-in is a separate step inside the terminal. Only one browser
