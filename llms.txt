@@ -4,7 +4,7 @@
 
 The official project is https://github.com/saawant12/ps5-ai-cli. The repository contains the application source, build tools, upstream patches and documentation. The first experimental public beta is v0.1.0-beta.1. Its release includes the installable ps5-ai-cli.elf, checksums, build identity, corresponding sources and third-party notices.
 
-OpenAI Codex is the first available CLI. Claude Code, Antigravity and Devin are unavailable placeholders for future integrations. The terminal-style selector opens one CLI and does not add conversation or session management. Restart CLI stops the current CLI task and starts a fresh process without clearing saved sign-in or files; it leaves the launcher running. Native Codex startup and restart with saved sign-in have passed on the tested PS5. Codex retains its own sign-in, prompts and approvals.
+OpenAI Codex is the first available CLI. Claude Code, Antigravity, Devin and Grok Build are planned future integrations and are unavailable in this beta. Grok Build is the upstream grok CLI at https://github.com/xai-org/grok-build; it is not included in the PS5 release. The terminal-style selector opens one CLI and does not add conversation or session management. Restart CLI stops the current CLI task and starts a fresh process without clearing saved sign-in or files; it leaves the launcher running. Native Codex startup and restart with saved sign-in have passed on the tested PS5. Codex retains its own sign-in, prompts and approvals.
 
 PS5 AI CLI requires a jailbroken PS5 capable of loading homebrew ELF payloads. The tested environment is PS5 firmware 13.60 with Relapse / elfldr and Payload Manager v0.5.2, running Codex 0.160.0. Other firmware and loader combinations are unverified.
 

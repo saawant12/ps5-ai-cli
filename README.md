@@ -33,8 +33,9 @@ from a phone or computer on the same network.
 - **Read comfortably on the TV.** A bundled monospace font keeps terminal text
   evenly spaced without downloading fonts.
 
-**Codex is the first supported CLI.** Claude Code, Antigravity and Devin are
-shown as unavailable in the picker; their integrations are planned for later.
+**Codex is the first supported CLI.** Claude Code, Antigravity, Devin and
+[Grok Build](https://github.com/xai-org/grok-build) are planned future
+integrations and are not available in this beta.
 The launcher opens one CLI and leaves conversations and approvals to that CLI.
 
 ## Beta status
