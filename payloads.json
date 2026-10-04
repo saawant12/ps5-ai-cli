@@ -4,11 +4,11 @@
     {
       "name": "PS5 AI CLI",
       "filename": "ps5-ai-cli.elf",
-      "url": "https://github.com/saawant12/ps5-ai-cli/releases/download/v0.1.0-beta.1/ps5-ai-cli.elf",
+      "url": "https://github.com/saawant12/ps5-ai-cli/releases/download/v0.1.0-beta.2/ps5-ai-cli.elf",
       "description": "Run native OpenAI Codex on PS5 with controller text entry and a paired phone or computer browser. Experimental beta.",
-      "version": "v0.1.0-beta.1",
+      "version": "v0.1.0-beta.2",
       "category": "Utilities",
-      "checksum": "78d828bf516f0234ab0ded5b1ef7a4e216f2aa007607561708c37f2c0a6abf2a"
+      "checksum": "cbab3f7749dcf74352a6f6ce2ccfd1eb258bd8a05ba7e65ed4fc210c445ca12f"
     }
   ]
 }
