@@ -117,7 +117,7 @@ relay, stops and reaps the owned child with bounded waits, and launches it again
 it does not wipe credentials or workspace files. It does not automatically
 relaunch a CLI after an exit.
 
-Source builds monitor the gateway's listening socket and recreate it when it
+The gateway monitors its listening socket and recreates it when it
 stops accepting connections. Recovery keeps pairing sessions and the existing
 CLI process. An attached browser retries a lost connection with bounded backoff;
 choosing Disconnect or exiting the CLI stops those retries. If the console's IP

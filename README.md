@@ -9,7 +9,7 @@ to jailbroken PlayStation 5 consoles. Open the home-screen icon, choose Codex fr
 and use its own terminal interface. Enter text with your controller or connect
 from a phone or computer on the same network.
 
-[Download beta](https://github.com/saawant12/ps5-ai-cli/releases/tag/v0.1.0-beta.1) ·
+[Download beta](https://github.com/saawant12/ps5-ai-cli/releases/tag/v0.1.0-beta.2) ·
 [Payload Manager feed](https://raw.githubusercontent.com/saawant12/ps5-ai-cli/main/payloads.json) ·
 [Setup and controls](#getting-started) ·
 [Report a problem](https://github.com/saawant12/ps5-ai-cli/issues) ·
@@ -29,6 +29,8 @@ from a phone or computer on the same network.
   CLI through your browser.
 - **Restart a stuck CLI.** Use **Restart CLI** to open a fresh Codex process
   while keeping the launcher, saved sign-in and files.
+- **Pick up where you left off.** Reconnecting restores the retained Codex
+  conversation and unsent prompt without restarting the CLI.
 - **Stay signed in.** Codex keeps its sign-in on the console across payload
   restarts, as long as you keep its saved data.
 - **Read comfortably on the TV.** A bundled monospace font keeps terminal text
@@ -41,8 +43,8 @@ The launcher opens one CLI and leaves conversations and approvals to that CLI.
 
 ## Beta status
 
-**[Download v0.1.0-beta.1](https://github.com/saawant12/ps5-ai-cli/releases/tag/v0.1.0-beta.1)**,
-the first experimental public beta. Install `ps5-ai-cli.elf`; the release also
+**[Download v0.1.0-beta.2](https://github.com/saawant12/ps5-ai-cli/releases/tag/v0.1.0-beta.2)**,
+the latest experimental public beta. Install `ps5-ai-cli.elf`; the release also
 includes checksums, build details, corresponding sources and third-party notices.
 
 On the tested PS5, the home-screen shortcut, device-code sign-in, saved sign-in
@@ -68,7 +70,7 @@ console awake and give it working internet and DNS access for Codex startup,
 sign-in and model responses.
 
 1. **Install and run the payload.** Download
-   [ps5-ai-cli.elf](https://github.com/saawant12/ps5-ai-cli/releases/download/v0.1.0-beta.1/ps5-ai-cli.elf),
+   [ps5-ai-cli.elf](https://github.com/saawant12/ps5-ai-cli/releases/download/v0.1.0-beta.2/ps5-ai-cli.elf),
    install it in Payload Manager, and run it once. A successful startup adds
    the **PS5 AI CLI** home-screen icon. You can also
    [build from source](docs/DEVELOPMENT.md).
@@ -172,10 +174,10 @@ Store. You do not need to remove Orbit to use it.
 
 - **“Couldn't connect to server” when opening the icon:** check that the
   PS5 AI CLI payload is running, then reopen the icon.
-- **The app stopped responding after changing Wi-Fi or LAN settings:** restart
-  only the PS5 AI CLI payload in Payload Manager, then reopen it. The published
-  v0.1.0-beta.1 release requires this manual recovery. Builds from current source
-  attempt automatic recovery; a physical PS5 network-change test remains unverified.
+- **The app stopped responding after changing Wi-Fi or LAN settings:**
+  the app attempts automatic recovery while preserving pairing and the running
+  CLI. If it stays unreachable, restart only the PS5 AI CLI payload in Payload
+  Manager. A physical PS5 network-change test remains unverified.
 - **“Port may already be in use”:** an instance may already be running. Try the
   icon first. Identify the existing PS5 AI CLI process before stopping anything;
   repeatedly launching the ELF does not restart it.
@@ -198,12 +200,10 @@ Leave out pairing codes, sign-in codes, credentials and private prompt content.
 
 ## Current limits
 
-In the published v0.1.0-beta.1 release, reopening the TV app or attaching from a
-fresh browser can show the live prompt without restoring earlier terminal output.
-The CLI continues running. Builds from current source restore the retained Codex
-transcript and unsent prompt; fresh browser attachment at unchanged and different
-terminal widths has passed against a native PS5 instance. Physical TV app reopening
-with this change remains unverified.
+Reconnecting restores the retained Codex transcript and unsent prompt while
+keeping the CLI running. Fresh browser attachment at unchanged and different
+terminal widths has passed against a native PS5 instance. Physical TV app
+reopening and recovery after a PS5 network change remain unverified.
 
 Codex is the only available CLI. A small shell coding task has passed; broader
 project workflows remain unverified. Commands use a bundled native shell and file tools; interactive
