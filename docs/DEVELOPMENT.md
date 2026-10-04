@@ -214,3 +214,10 @@ note before copying any assets. A development pairing build or captured-object
 relink has a different ID and is rejected. The output contains one installable
 `ps5-ai-cli.elf`, matching source and notices archives, a build manifest, and
 `SHA256SUMS`. This check does not substitute for running the candidate on PS5.
+
+After publishing a release, update the root `payloads.json` with its exact tag,
+version-pinned ELF download URL and SHA-256 from the verified release artifact.
+Keep the top-level `name` before `payloads`, as required by Payload Manager's
+parser. Confirm the public download and checksum before pushing the feed.
+The feed distributes the payload through Payload Manager; the running app does
+not fetch it or install updates automatically.

@@ -35,6 +35,7 @@ Original project code is GPL-3.0-or-later; dependencies retain their own licence
 ## Releases and support
 
 - [Download v0.1.0-beta.1](https://github.com/saawant12/ps5-ai-cli/releases/tag/v0.1.0-beta.1): Experimental beta payload, release notes, checksums, source and notices.
+- [Payload Manager feed](https://raw.githubusercontent.com/saawant12/ps5-ai-cli/main/payloads.json): Add this URL under Settings, Manage Sources, Add Source. The feed contains the published ELF URL, version and SHA-256 checksum. Stop the existing CLI and gateway before replacing a running installation, as described in the README.
 - [Issues](https://github.com/saawant12/ps5-ai-cli/issues): Report the version or build ID, firmware, loader and reproduction steps. Exclude pairing codes, sign-in codes, credentials and private prompt content.
 
 ## Optional

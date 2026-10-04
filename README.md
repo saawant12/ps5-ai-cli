@@ -10,6 +10,7 @@ and use its own terminal interface. Enter text with your controller or connect
 from a phone or computer on the same network.
 
 [Download beta](https://github.com/saawant12/ps5-ai-cli/releases/tag/v0.1.0-beta.1) ·
+[Payload Manager feed](https://raw.githubusercontent.com/saawant12/ps5-ai-cli/main/payloads.json) ·
 [Setup and controls](#getting-started) ·
 [Report a problem](https://github.com/saawant12/ps5-ai-cli/issues) ·
 [llms.txt](llms.txt)
@@ -80,6 +81,20 @@ sign-in and model responses.
 The icon opens the running payload; it cannot start the payload by itself.
 After a console restart, run your jailbreak and start **PS5 AI CLI** through
 your payload manager before opening the icon. Auto-start has not been verified.
+
+### Install from a Payload Manager source
+
+In Payload Manager, open **Settings → Manage Sources → Add Source** and add:
+
+```text
+https://raw.githubusercontent.com/saawant12/ps5-ai-cli/main/payloads.json
+```
+
+Open the **PS5 AI CLI** source, download **PS5 AI CLI**, and run
+`ps5-ai-cli.elf`. The feed includes the release version and SHA-256 checksum
+using the [Payload Manager repository format](https://github.com/itsPLK/ps5-payload-manager/blob/main/CUSTOM_REPOSITORIES.md).
+For an existing installation, follow [Saved sign-in and updates](#saved-sign-in-and-updates)
+before replacing or restarting the payload.
 
 ### From your phone or computer
 
