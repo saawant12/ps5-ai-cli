@@ -2,6 +2,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let socket = null, terminal = null, fit = null, paired = false, selected = false, connecting = false, restarting = false;
+let reconnectTimer = null, reconnectDelay = 1000, autoReconnect = false;
 const consoleMode = new URLSearchParams(location.search).has('console');
 if (consoleMode) document.body.classList.add('console-mode');
 let controllerMode = 'terminal';
@@ -37,6 +38,22 @@ function focusPrompt() {
   terminal?.scrollToBottom();
   terminal?.focus();
 }
+function scheduleReconnect() {
+  if (!autoReconnect || restarting || reconnectTimer) return;
+  notice('Connection lost. Reconnecting to the running CLI…');
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+    if (!autoReconnect || restarting) return;
+    try {
+      const status = await request('/api/status');
+      if (!autoReconnect || restarting) return;
+      paired = status.paired;
+      if (!paired) autoReconnect = false;
+      await connect();
+    } catch (_) { scheduleReconnect(); }
+  }, reconnectDelay);
+  reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+}
 function resize() {
   if (!terminal || $('terminal-view').hidden) return;
   const columns = terminal.cols, rows = terminal.rows;
@@ -46,6 +63,7 @@ function resize() {
 async function connect() {
   if (!paired) { $('pair-dialog').showModal(); return; }
   if (connecting || (socket && socket.readyState <= WebSocket.OPEN)) return;
+  clearTimeout(reconnectTimer); reconnectTimer = null;
   connecting = true;
   selected = true; $('picker').hidden = true; $('terminal-view').hidden = false;
   const fontSize = consoleMode ? 18 : 14;
@@ -62,18 +80,20 @@ async function connect() {
   resize(); notice(''); $('connection').textContent = 'Opening Codex'; $('reconnect').hidden = true;
   const current = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/terminal/codex?cols=${terminal.cols}&rows=${terminal.rows}`);
   current.binaryType = 'arraybuffer'; socket = current; connecting = false; controllerMode = 'terminal';
-  current.onopen = () => { if (socket !== current) return; $('connection').textContent = 'Codex connected'; $('disconnect').hidden = false; setInputConnected(true); resize(); focusPrompt(); };
+  current.onopen = () => { if (socket !== current) return; autoReconnect = true; reconnectDelay = 1000; $('connection').textContent = 'Codex connected'; $('disconnect').hidden = false; notice(''); setInputConnected(true); resize(); focusPrompt(); };
   current.onmessage = event => {
     if (socket !== current) return;
     if (event.data instanceof ArrayBuffer) terminal.write(new Uint8Array(event.data));
     else notice(event.data);
   };
-  current.onclose = () => {
+  current.onclose = event => {
     if (socket !== current) return;
+    if (event.code === 1000) autoReconnect = false;
     socket = null; $('disconnect').hidden = true; setInputConnected(false);
     if (restarting) return;
     $('connection').textContent = 'Disconnected'; $('reconnect').hidden = false;
     notice('Terminal disconnected. Reconnect to the running CLI, or use Restart CLI if it stopped responding.');
+    scheduleReconnect();
   };
   current.onerror = () => { if (!restarting) notice('Could not open Codex. If it exited, use Restart CLI. Another device may already control the terminal.'); };
 }
@@ -81,11 +101,15 @@ $('launch-codex').onclick = connect;
 $('reconnect').onclick = async () => {
   try { paired = (await request('/api/status')).paired; connect(); } catch (error) { notice(error.message); }
 };
-$('disconnect').onclick = () => socket?.close(1000);
+$('disconnect').onclick = () => {
+  autoReconnect = false; clearTimeout(reconnectTimer); reconnectTimer = null;
+  socket?.close(1000);
+};
 $('focus-prompt').onclick = focusPrompt;
 $('restart-cli').onclick = async () => {
   if (restarting) return;
   restarting = true;
+  autoReconnect = false; clearTimeout(reconnectTimer); reconnectTimer = null;
   setInputConnected(false);
   $('restart-cli').disabled = true;
   $('restart-cli').textContent = 'Restarting…';

@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 python3 tools/embed-ui.py
-flags=(-O2 -Wall -Wextra -Werror -pthread)
+flags=(-O2 -Wall -Wextra -Werror -pthread -DPS5_UI_TESTING)
 sources=(tools/ui/host.c app/gateway.c app/http.c app/websocket.c)
 case "$(uname -s)" in
   Darwin) flags+=(-Wno-deprecated-declarations) ;;

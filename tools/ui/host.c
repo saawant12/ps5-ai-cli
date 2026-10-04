@@ -26,6 +26,9 @@ static void stop(int sig) {
     if (child > 0) kill(-child, SIGHUP);
     _exit(0);
 }
+#ifdef PS5_UI_TESTING
+static void drop_listener(int sig) { (void)sig; ps5_ui_test_drop_listener(); }
+#endif
 static void resize_terminal(unsigned cols, unsigned rows) {
     struct winsize window = {.ws_col = cols, .ws_row = rows};
     if (master >= 0) ioctl(master, TIOCSWINSZ, &window);
@@ -93,6 +96,9 @@ int main(int argc, char **argv) {
     command = argv + 1;
     signal(SIGPIPE, SIG_IGN);
     signal(SIGTERM, stop); signal(SIGINT, stop);
+#ifdef PS5_UI_TESTING
+    signal(SIGUSR1, drop_listener);
+#endif
     unsigned port = getenv("PS5_UI_PORT") ? (unsigned)strtoul(getenv("PS5_UI_PORT"), NULL, 10) : 8035;
     if (port < 1024 || port > 65535) return 1;
     struct ui_config config = {.port = port, .pair_code = code, .fixture = 1, .loopback_only = 1,

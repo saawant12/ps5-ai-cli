@@ -29,6 +29,9 @@ int ui_write(int fd, const void *data, size_t size) {
 
 void ui_socket_options(int fd) {
     fcntl(fd, F_SETFD, FD_CLOEXEC);
+    /* BSD accept can inherit O_NONBLOCK from the recovering listener. */
+    int flags = fcntl(fd, F_GETFL);
+    if (flags >= 0) fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
     int yes = 1;
 #ifdef SO_NOSIGPIPE
     setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(yes));

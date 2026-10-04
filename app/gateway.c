@@ -14,7 +14,13 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <unistd.h>
+#ifdef PS5_UI_TESTING
+#include <signal.h>
+static volatile sig_atomic_t test_drop_listener;
+void ps5_ui_test_drop_listener(void) { test_drop_listener = 1; }
+#endif
 #include "../build/ui-assets.h"
 
 #define CLIENT_LIMIT 16
@@ -129,6 +135,11 @@ static int connection_upgrade(const char *value) {
     return 0;
 }
 
+static void cli_closed(int client) {
+    const unsigned char normal_close[] = {3, 232}; /* 1000: CLI ended. */
+    terminal_frame(client, 8, normal_close, sizeof(normal_close));
+}
+
 static void relay(int client, const struct ui_request *r, int session, unsigned cols, unsigned rows) {
     if (strcmp(r->method, "GET") || !ui_same_origin(r) || r->length ||
         strcasecmp(r->upgrade, "websocket") || r->version != 13 || !websocket_key_valid(r->key) ||
@@ -190,10 +201,17 @@ static void relay(int client, const struct ui_request *r, int session, unsigned 
         }
         if (sockets[1].revents & POLLIN) {
             ssize_t n = read(terminal, data, sizeof(data));
-            if (n < 0 && errno == EINTR) continue;
-            if (n <= 0 || terminal_frame(client, 2, data, (size_t)n)) break;
+            if (n < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) continue;
+            if (n <= 0) { cli_closed(client); break; }
+            if (terminal_frame(client, 2, data, (size_t)n)) break;
         }
-        if ((sockets[0].revents | sockets[1].revents) & (POLLHUP | POLLERR | POLLNVAL)) break;
+        if (sockets[0].revents & (POLLHUP | POLLERR | POLLNVAL)) break;
+        /* Drain output before closing: a PTY may report readable data and HUP
+         * together, then return EIO instead of EOF after its child exits. */
+        if (!(sockets[1].revents & POLLIN) &&
+            (sockets[1].revents & (POLLHUP | POLLERR | POLLNVAL))) {
+            cli_closed(client); break;
+        }
     }
     close(terminal);
     pthread_mutex_lock(&terminal_lock);
@@ -301,11 +319,99 @@ static int start_client(pthread_t *thread, int *argument) {
     return error;
 }
 
+static int open_listener(void) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return -1;
+    int yes = 1;
+    struct sockaddr_in address = {.sin_family = AF_INET, .sin_port = htons(server.port)};
+    address.sin_addr.s_addr = htonl(server.config.loopback_only ? INADDR_LOOPBACK : INADDR_ANY);
+    if (fcntl(fd, F_SETFD, FD_CLOEXEC) || fcntl(fd, F_SETFL, O_NONBLOCK) ||
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) ||
+        bind(fd, (struct sockaddr *)&address, sizeof(address)) || listen(fd, 16)) {
+        int error = errno; close(fd); errno = error; return -1;
+    }
+    return fd;
+}
+
+/* Network changes can leave a live descriptor that no longer accepts TCP.
+ * A bounded loopback probe also detects that state when poll reports no error.
+ * Resource exhaustion and a busy backlog are inconclusive, not restart reasons. */
+static int listener_healthy(int fd) {
+    int accepting = 0;
+    socklen_t size = sizeof(accepting);
+    int checked = getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &accepting, &size);
+    if ((!checked && !accepting) || (checked && (errno == EBADF || errno == ENOTSOCK))) return 0;
+    int probe = socket(AF_INET, SOCK_STREAM, 0);
+    if (probe < 0) return -1;
+    if (fcntl(probe, F_SETFD, FD_CLOEXEC) || fcntl(probe, F_SETFL, O_NONBLOCK)) {
+        close(probe); return -1;
+    }
+    struct sockaddr_in address = {.sin_family = AF_INET, .sin_port = htons(server.port)};
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    int result = connect(probe, (struct sockaddr *)&address, sizeof(address));
+    int error = result ? errno : 0;
+    if (result && error == EINPROGRESS) {
+        struct pollfd ready = {.fd = probe, .events = POLLOUT};
+        result = poll(&ready, 1, 200);
+        size = sizeof(error);
+        if (result <= 0 || getsockopt(probe, SOL_SOCKET, SO_ERROR, &error, &size)) {
+            close(probe); return -1;
+        }
+    }
+    close(probe);
+    if (!error) return 1;
+    return error == ECONNREFUSED || error == ENETDOWN || error == ENETUNREACH ||
+        error == EHOSTUNREACH || error == EINVAL || error == EBADF ? 0 : -1;
+}
+
+static void retire_listener(void) {
+    close(server.listener);
+    server.listener = -1;
+    /* Wake a relay left behind by the old network. Its CLI and pairing remain. */
+    pthread_mutex_lock(&terminal_lock);
+    if (terminal_client >= 0) shutdown(terminal_client, SHUT_RDWR);
+    pthread_mutex_unlock(&terminal_lock);
+}
+
 static void *accept_main(void *unused) {
     (void)unused;
+    time_t next_probe = 0;
     for (;;) {
+        if (server.listener < 0) {
+            server.listener = open_listener();
+            if (server.listener < 0) { poll(NULL, 0, 1000); continue; }
+            next_probe = 0;
+        }
+#ifdef PS5_UI_TESTING
+        if (test_drop_listener) {
+            test_drop_listener = 0;
+            /* Replace it with a valid socket that is no longer listening. */
+            int broken = socket(AF_INET, SOCK_STREAM, 0);
+            if (broken >= 0) { (void)dup2(broken, server.listener); close(broken); }
+            next_probe = 0;
+        }
+#endif
+        struct pollfd pending = {.fd = server.listener, .events = POLLIN};
+        int ready = poll(&pending, 1, 1000);
+        if (ready < 0 && errno == EINTR) continue;
+        if (ready < 0 || (pending.revents & (POLLERR | POLLHUP | POLLNVAL))) {
+            retire_listener(); continue;
+        }
+        struct timespec clock;
+        time_t now = clock_gettime(CLOCK_MONOTONIC, &clock) ? next_probe : clock.tv_sec;
+        if (now >= next_probe) {
+            next_probe = now + 5;
+            if (listener_healthy(server.listener) == 0) { retire_listener(); continue; }
+        }
+        if (!ready) continue;
         int fd = accept(server.listener, NULL, NULL);
-        if (fd < 0) { if (errno == EINTR) continue; usleep(10000); continue; }
+        if (fd < 0) {
+            if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED) continue;
+            if (errno == EMFILE || errno == ENFILE || errno == ENOBUFS || errno == ENOMEM) {
+                poll(NULL, 0, 1000); continue;
+            }
+            retire_listener(); continue;
+        }
         ui_socket_options(fd);
         pthread_mutex_lock(&server.lock);
         int full = server.clients >= CLIENT_LIMIT;
@@ -330,16 +436,8 @@ int ps5_ui_start(const struct ui_config *config) {
     server.fixture = config->fixture;
     memcpy(server.pair_code, config->pair_code, 7);
     server.pair_deadline = time(NULL) + 15 * 60;
-    server.listener = socket(AF_INET, SOCK_STREAM, 0);
+    server.listener = open_listener();
     if (server.listener < 0) return -1;
-    if (fcntl(server.listener, F_SETFD, FD_CLOEXEC)) { close(server.listener); return -1; }
-    int yes = 1;
-    setsockopt(server.listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-    struct sockaddr_in address = {.sin_family = AF_INET, .sin_port = htons(config->port)};
-    address.sin_addr.s_addr = htonl(config->loopback_only ? INADDR_LOOPBACK : INADDR_ANY);
-    if (bind(server.listener, (struct sockaddr *)&address, sizeof(address)) || listen(server.listener, 16)) {
-        close(server.listener); return -1;
-    }
     pthread_t thread;
     if (pthread_create(&thread, NULL, accept_main, NULL)) { close(server.listener); return -1; }
     pthread_detach(thread);

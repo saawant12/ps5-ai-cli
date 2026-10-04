@@ -16,4 +16,8 @@ struct ui_config {
 };
 /* Binds synchronously, then serves on detached native threads. */
 int ps5_ui_start(const struct ui_config *config);
+#ifdef PS5_UI_TESTING
+/* Host-only fault injection; never built into a console payload. */
+void ps5_ui_test_drop_listener(void);
+#endif
 #endif

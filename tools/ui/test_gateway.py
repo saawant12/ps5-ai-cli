@@ -10,6 +10,7 @@ import tempfile
 import socket
 import re
 import struct
+import signal
 import unittest
 
 HOST = '127.0.0.1:8035'
@@ -220,6 +221,62 @@ class GatewayTests(unittest.TestCase):
         match = self.terminal_until(second, rb'NEW_PID=(\d+) VALUE=(\w+)')
         self.assertNotEqual(match.group(1), old_pid)
         self.assertEqual(match.group(2), b'unset')
+
+    def test_cli_exit_sends_normal_websocket_close(self):
+        _, result, _ = self.request('POST', '/api/pair', CODE,
+                                    {'Origin': ORIGIN, 'X-PS5-Client': '1'})
+        connection = self.open_terminal(result['Set-Cookie'].split(';')[0])
+        self.terminal_send(connection, 'exit\r')
+
+        def exact(size):
+            data = b''
+            while len(data) < size:
+                chunk = connection.recv(size - len(data))
+                self.assertTrue(chunk, 'CLI exit must send a close frame before EOF')
+                data += chunk
+            return data
+
+        for _ in range(100):
+            header = exact(2)
+            size = header[1] & 127
+            if size == 126: size = struct.unpack('!H', exact(2))[0]
+            elif size == 127: size = struct.unpack('!Q', exact(8))[0]
+            payload = exact(size)
+            if header[0] & 15 == 8:
+                self.assertEqual(payload[:2], struct.pack('!H', 1000))
+                return
+        self.fail('CLI exit did not send a normal close frame')
+
+    def test_listener_recovers_without_losing_pairing_or_cli(self):
+        _, result, _ = self.request('POST', '/api/pair', CODE,
+                                    {'Origin': ORIGIN, 'X-PS5-Client': '1'})
+        cookie = result['Set-Cookie'].split(';')[0]
+        first = self.open_terminal(cookie)
+        self.terminal_send(first, 'export RECOVERY_VALUE=retained; printf "BEFORE=%s\\n" "$$"\r')
+        pid = self.terminal_until(first, rb'BEFORE=(\d+)').group(1)
+        self.server.send_signal(signal.SIGUSR1)
+        # Fault injection disables the listener. Recovery closes only the relay.
+        first.settimeout(5)
+        while first.recv(4096):
+            pass
+        first.close()
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                status, _, data = self.request('GET', '/api/status', headers={'Cookie': cookie})
+                if status == 200:
+                    self.assertTrue(json.loads(data)['paired'])
+                    break
+            except OSError:
+                pass
+            if time.monotonic() > deadline:
+                self.fail('Listener did not recover')
+            time.sleep(.05)
+        second = self.open_terminal(cookie)
+        self.terminal_send(second, 'printf "AFTER=%s VALUE=%s\\n" "$$" "$RECOVERY_VALUE"\r')
+        restored = self.terminal_until(second, rb'AFTER=(\d+) VALUE=(\w+)')
+        self.assertEqual(restored.group(1), pid)
+        self.assertEqual(restored.group(2), b'retained')
 
 if __name__ == '__main__':
     unittest.main()

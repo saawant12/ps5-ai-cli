@@ -173,8 +173,9 @@ Store. You do not need to remove Orbit to use it.
 - **“Couldn't connect to server” when opening the icon:** check that the
   PS5 AI CLI payload is running, then reopen the icon.
 - **The app stopped responding after changing Wi-Fi or LAN settings:** restart
-  only the PS5 AI CLI payload in Payload Manager, then reopen it. Automatic
-  recovery after a network change is not implemented yet.
+  only the PS5 AI CLI payload in Payload Manager, then reopen it. The published
+  v0.1.0-beta.1 release requires this manual recovery. Builds from current source
+  attempt automatic recovery; a physical PS5 network-change test remains unverified.
 - **“Port may already be in use”:** an instance may already be running. Try the
   icon first. Identify the existing PS5 AI CLI process before stopping anything;
   repeatedly launching the ELF does not restart it.
@@ -197,9 +198,12 @@ Leave out pairing codes, sign-in codes, credentials and private prompt content.
 
 ## Current limits
 
-Reopening the TV app or attaching from a fresh browser can show the live prompt
-without restoring earlier terminal output. The CLI continues running, but full
-screen/history restoration is not reliable in this beta.
+In the published v0.1.0-beta.1 release, reopening the TV app or attaching from a
+fresh browser can show the live prompt without restoring earlier terminal output.
+The CLI continues running. Builds from current source restore the retained Codex
+transcript and unsent prompt; fresh browser attachment at unchanged and different
+terminal widths has passed against a native PS5 instance. Physical TV app reopening
+with this change remains unverified.
 
 Codex is the only available CLI. A small shell coding task has passed; broader
 project workflows remain unverified. Commands use a bundled native shell and file tools; interactive

@@ -1,0 +1,17 @@
+diff --git a/codex-rs/tui/src/app.rs b/codex-rs/tui/src/app.rs
+--- a/codex-rs/tui/src/app.rs
++++ b/codex-rs/tui/src/app.rs
+@@ -880,6 +880,13 @@ impl App {
+             return Ok(AppRunControl::Exit(ExitReason::UserRequested));
+         }
+         let screen_size = tui.screen_size_for_event(&event)?;
++        // A PS5 browser reattach emits Resize even at unchanged dimensions.
++        // The new terminal has no scrollback; restore retained transcript cells
++        // as well as the prompt viewport. Overlays defer replay until they close.
++        #[cfg(target_env = "ps5")]
++        if matches!(&event, TuiEvent::Resize(_)) {
++            self.schedule_immediate_resize_reflow(tui);
++        }
+         if !matches!(
+             &event,
+             TuiEvent::Key(_) | TuiEvent::Mouse(_) | TuiEvent::Paste(_) | TuiEvent::FocusLost

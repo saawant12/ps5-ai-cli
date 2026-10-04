@@ -10,7 +10,7 @@ export RUSTUP_TOOLCHAIN=1.95.0
 export RUSTC_BOOTSTRAP=1
 export RUST_LIBC_UNSTABLE_FREEBSD_VERSION=11
 export CARGO_HOME=/work/.cache/cargo
-export CARGO_TARGET_DIR=/work/build/codex-target
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-/work/build/codex-target}"
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=clang
 export HOST_CC=clang HOST_CXX=clang++
 export CC_x86_64_ps5_freebsd=/opt/ps5-payload-sdk/bin/prospero-clang
@@ -71,20 +71,23 @@ if [ ! -f /work/locks/codex/Cargo.lock ]; then
   cp /work/vendor/codex/codex-rs/Cargo.lock /work/locks/codex/Cargo.lock
 fi
 cd vendor/codex/codex-rs
-cargo "$cargo_mode" "${cargo_extra[@]}" --locked -Z lockfile-path --config 'resolver.lockfile-path="/work/locks/codex/Cargo.lock"' \
+# Docker shared filesystems can round dep-info timestamps below generated source
+# mtimes in the same second. Content checks avoid rebuilding the dependency graph
+# on every container run while still detecting real source changes.
+cargo "$cargo_mode" "${cargo_extra[@]}" --locked -Z checksum-freshness -Z lockfile-path --config 'resolver.lockfile-path="/work/locks/codex/Cargo.lock"' \
   --config 'patch.crates-io.mio.path="/work/vendor/mio-1.2.0"' \
   -j "${CARGO_BUILD_JOBS:-1}" \
   -p codex-cli --bin codex \
   --target /work/targets/x86_64-ps5-freebsd.json -Z json-target-spec \
   -Z build-std=std,panic_abort -Z build-std-features=panic-unwind "${rustc_extra[@]}"
 if [[ "$mode" == build ]]; then
-  cp /work/build/codex-target/x86_64-ps5-freebsd/debug/codex /work/build/codex-version-probe.elf
+  cp "$CARGO_TARGET_DIR/x86_64-ps5-freebsd/debug/codex" /work/build/codex-version-probe.elf
   llvm-strip --strip-all /work/build/codex-version-probe.elf
   llvm-readelf -h -l -d /work/build/codex-version-probe.elf > /work/build/codex-elf.txt
 fi
 
 if [[ "$mode" == terminal || "$mode" == terminal-release ]]; then
-  cp "/work/build/codex-target/x86_64-ps5-freebsd/$profile/codex" /work/build/ps5-ai-cli.elf
+  cp "$CARGO_TARGET_DIR/x86_64-ps5-freebsd/$profile/codex" /work/build/ps5-ai-cli.elf
   llvm-strip --strip-all /work/build/ps5-ai-cli.elf
   python3 /work/tools/payload.py /work/build/ps5-ai-cli.elf --max-size-mib 512
 fi

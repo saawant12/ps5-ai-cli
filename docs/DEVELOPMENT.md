@@ -28,7 +28,21 @@ Use `make terminal-release` for the optimized ELF. For development diagnostics,
 run `make probe`, `make test`, `make codex-check`, or `make codex-build`.
 
 Full Codex builds default to one compilation job. Avoid concurrent large builds
-in memory-constrained Docker environments.
+in memory-constrained Docker environments. With sufficient Docker memory, use
+`make terminal-release CARGO_BUILD_JOBS=2` for a faster cold build.
+
+The Codex build targets keep compiled dependencies in the Docker volume
+`ps5-ai-cli-cargo-target`, mounted at `/work/build/codex-target`. Docker Desktop's
+shared filesystem can round Cargo's generated timestamps and cause unnecessary
+rebuilds; the native volume preserves their precision. Source checksums also
+protect freshness checks for the shared source tree. Keep this volume and
+`.cache/cargo` between builds. The final ELF remains in the project's `build/`
+directory.
+
+The first build populates the volume. Later UI or native C changes invalidate
+the final CLI link without rebuilding unchanged Rust libraries. Set
+`CARGO_TARGET_VOLUME=my-ps5-cache` when invoking Make to use a separate cache.
+`make terminal-dev` uses the same volume as the preceding Cargo build.
 
 - `make probe` builds `build/ps5-rust-runtime-probe.elf`.
 - `make codex-check` checks compilation; it does not link or run an ELF.
@@ -102,6 +116,23 @@ window sizes to the child's raw terminal adapter. Restart closes the attached
 relay, stops and reaps the owned child with bounded waits, and launches it again;
 it does not wipe credentials or workspace files. It does not automatically
 relaunch a CLI after an exit.
+
+Source builds monitor the gateway's listening socket and recreate it when it
+stops accepting connections. Recovery keeps pairing sessions and the existing
+CLI process. An attached browser retries a lost connection with bounded backoff;
+choosing Disconnect or exiting the CLI stops those retries. If the console's IP
+address changes, a remote browser still needs the new address.
+Host tests cover listener failure, preserved pairing and CLI ownership, automatic
+browser reconnection, and normal CLI exits. Physical PS5 network-change recovery
+remains unverified.
+
+Each PS5 terminal attachment sends a resize event, including when the dimensions
+are unchanged. Codex uses that event to replay its retained transcript as well as
+redraw the prompt. This rebuilds a fresh browser's terminal from the CLI's own
+history, with replay deferred while an overlay is open.
+Native PS5 testing confirmed fresh browser attachment at unchanged and different
+terminal widths restores the header, prompt, reply and unsent composer text while
+retaining the same CLI process. Physical TV app reopening remains unverified.
 
 `POST /api/cli/codex/restart` requires a paired browser session, matching Origin,
 client header and empty body. Other CLI names are unavailable. The host gateway

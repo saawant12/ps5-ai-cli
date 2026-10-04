@@ -1,6 +1,9 @@
 IMAGE ?= ps5-ai-cli:rust1.95
 SDK_IMAGE ?= ps5-ai-cli:sdk
+CARGO_TARGET_VOLUME ?= ps5-ai-cli-cargo-target
+CARGO_BUILD_JOBS ?= 1
 ROOT := $(CURDIR)
+CARGO_BUILD_ARGS = -v "$(CARGO_TARGET_VOLUME):/work/build/codex-target" -e "CARGO_BUILD_JOBS=$(CARGO_BUILD_JOBS)"
 
 .PHONY: sdk toolchain probe process-probe loader-probe rust-loader-probe network-probe log-reader inspect test codex-check codex-build upload-probe
 
@@ -40,12 +43,12 @@ test: inspect
 
 codex-check:
 	python3 tools/prepare-mio.py
-	docker run --rm -v "$(ROOT):/work" $(IMAGE) tools/check-codex.sh
+	docker run --rm -v "$(ROOT):/work" $(CARGO_BUILD_ARGS) $(IMAGE) tools/check-codex.sh
 
 codex-build:
 	python3 tools/prepare-mio.py
 	python3 tools/fetch-loader.py
-	docker run --rm -v "$(ROOT):/work" $(IMAGE) tools/check-codex.sh build
+	docker run --rm -v "$(ROOT):/work" $(CARGO_BUILD_ARGS) $(IMAGE) tools/check-codex.sh build
 
 upload-probe: test
 	@test -n "$(MANAGER)" || (echo 'Set MANAGER=http://PS5_IP:8084'; exit 1)
@@ -62,7 +65,7 @@ terminal-ui:
 	python3 tools/embed-launcher.py
 
 terminal-dev: terminal-ui terminal-sources
-	docker run --rm --network none -v "$(ROOT):/work" $(IMAGE) tools/build-terminal.sh
+	docker run --rm --network none -v "$(ROOT):/work" $(CARGO_BUILD_ARGS) $(IMAGE) tools/build-terminal.sh
 
 terminal-host: terminal-ui
 	bash tools/ui/build-host.sh
@@ -73,8 +76,8 @@ terminal-test: terminal-host
 .PHONY: terminal terminal-release
 terminal: terminal-ui terminal-sources
 	python3 tools/prepare-mio.py
-	docker run --rm -v "$(ROOT):/work" $(IMAGE) tools/check-codex.sh terminal
+	docker run --rm -v "$(ROOT):/work" $(CARGO_BUILD_ARGS) $(IMAGE) tools/check-codex.sh terminal
 
 terminal-release: terminal-ui terminal-sources
 	python3 tools/prepare-mio.py
-	docker run --rm -v "$(ROOT):/work" $(IMAGE) tools/check-codex.sh terminal-release
+	docker run --rm -v "$(ROOT):/work" $(CARGO_BUILD_ARGS) $(IMAGE) tools/check-codex.sh terminal-release

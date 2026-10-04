@@ -18,9 +18,9 @@ Device-code sign-in, saved sign-in after a payload restart, and a model reply ha
 
 Codex saves sign-in data in /data/ps5-ai-cli/home/.codex and starts in /data/ps5-ai-cli/workspace. Closing the browser or replacing the payload preserves saved sign-in unless the user signs out or deletes the saved data. The launcher does not supply an AI account or subscription. Internet access and working DNS are required for sign-in, startup account checks and model responses. If startup reports workspace routing discovery failed, restore connectivity and use Restart CLI.
 
-Restart the identifiable PS5 AI CLI payload after changing the console's Wi-Fi or LAN settings if the app becomes unreachable. Launching another copy does not restart an existing instance. Leave unrelated payloads running. PS5 AI CLI has a separate shortcut, port and data directory from Orbit Store.
+In the published v0.1.0-beta.1 release, restart the identifiable PS5 AI CLI payload after changing the console's Wi-Fi or LAN settings if the app becomes unreachable. Builds from current source attempt automatic listener recovery and browser reconnection, preserving pairing and the running CLI; host tests pass, but a physical PS5 network-change test remains unverified. A changed console IP still requires the new browser address. Launching another copy does not restart an existing instance. Leave unrelated payloads running. PS5 AI CLI has a separate shortcut, port and data directory from Orbit Store.
 
-Reopening the TV app or attaching from a fresh browser can show the live prompt without restoring earlier terminal output. The CLI keeps running, but full screen/history restoration is not reliable in this beta.
+In the published v0.1.0-beta.1 release, reopening the TV app or attaching from a fresh browser can show the live prompt without restoring earlier terminal output. Builds from current source replay the retained Codex transcript and unsent prompt. Fresh browser attachment at unchanged and different terminal widths has passed against a native PS5 instance while retaining the same CLI process. Physical TV app reopening with this change remains unverified.
 
 Native commands use a bundled shell and file tools. Interactive child programs requiring a kernel PTY and arbitrary Linux or FreeBSD binaries are unsupported.
 
