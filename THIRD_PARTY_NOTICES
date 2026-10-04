@@ -1,6 +1,12 @@
 Original project code is licensed under GPL-3.0-or-later. Third-party source
 and patch context retain their original copyright and license notices.
-This source repository does not redistribute prebuilt runtime binaries.
+Binary releases are accompanied by a notices archive and a corresponding-source
+archive on the same GitHub release page. The notices archive includes a dependency
+inventory and preserved upstream license/copyright texts. The source archive
+includes this project, its patched upstream sources, dependency source archives,
+and the scripts and lockfiles used to build the payload. Build-only dependencies
+are included conservatively in the inventory; not every listed package is linked
+into the running application.
 
 OpenAI Codex
 ------------
@@ -64,8 +70,16 @@ notices for the SDK runtime and any libraries incorporated into a binary.
 
 Cargo dependency versions are recorded in the checked-in lockfiles. Licenses
 for transitive crates and external OpenSSL/curl libraries remain their own.
-This file describes the source tree; it is not a complete notice inventory for
-a future binary distribution.
+The release notices archive supplies their individual notices and declarations;
+this file provides the top-level component overview.
+
+LLVM runtime libraries
+----------------------
+The pinned SDK's libcxx.sh builds LLVM 18.1.8 runtime components, including
+libunwind. These use Apache-2.0 WITH LLVM-exception and retain component-specific
+notices. Their source archive and runtime license files accompany the release.
+The Rust distribution's standard-library copyright inventory and license files
+are also included in the notices archive.
 
 Orbit launcher adaptation
 ------------------------

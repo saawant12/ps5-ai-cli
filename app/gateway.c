@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "gateway.h"
+#include "config.h"
 #include "websocket.h"
 #include "http.h"
 #include <arpa/inet.h>
@@ -29,6 +30,8 @@ static struct {
     pthread_mutex_t lock;
     struct session sessions[SESSION_LIMIT];
 } server = {.lock = PTHREAD_MUTEX_INITIALIZER};
+static pthread_mutex_t terminal_lock = PTHREAD_MUTEX_INITIALIZER;
+static int terminal_client = -1, restarting;
 
 static int equal(const char *a, const char *b, size_t length) {
     unsigned char difference = 0;
@@ -128,11 +131,20 @@ static void relay(int client, const struct ui_request *r, int session, unsigned 
         !connection_upgrade(r->connection) || cols < 20 || cols > 500 || rows < 5 || rows > 200) {
         json_reply(client, 403, "{\"error\":\"Invalid terminal connection.\"}"); return;
     }
-    int terminal = server.config.attach(cols, rows);
+    pthread_mutex_lock(&terminal_lock);
+    int terminal = restarting ? -1 : server.config.attach(cols, rows);
+    if (terminal >= 0) terminal_client = client;
+    pthread_mutex_unlock(&terminal_lock);
     if (terminal < 0) {
         json_reply(client, 503, "{\"error\":\"Terminal unavailable or already controlled by another device.\"}"); return;
     }
-    if (terminal_upgrade(client, r)) { close(terminal); server.config.detach(); return; }
+    if (terminal_upgrade(client, r)) {
+        close(terminal);
+        pthread_mutex_lock(&terminal_lock);
+        terminal_client = -1; server.config.detach();
+        pthread_mutex_unlock(&terminal_lock);
+        return;
+    }
     unsigned char data[16384];
     char token[65];
     pthread_mutex_lock(&server.lock);
@@ -180,7 +192,10 @@ static void relay(int client, const struct ui_request *r, int session, unsigned 
         if ((sockets[0].revents | sockets[1].revents) & (POLLHUP | POLLERR | POLLNVAL)) break;
     }
     close(terminal);
+    pthread_mutex_lock(&terminal_lock);
+    terminal_client = -1;
     server.config.detach();
+    pthread_mutex_unlock(&terminal_lock);
 }
 
 static void handle(int fd) {
@@ -193,6 +208,29 @@ static void handle(int fd) {
     pthread_mutex_lock(&server.lock);
     int session = session_index(r.cookie);
     pthread_mutex_unlock(&server.lock);
+    if (!strcmp(r.path, "/api/cli/codex/restart") && !strcmp(r.method, "POST")) {
+        if (session < 0 || !ui_same_origin(&r) || strcmp(r.client, "1") || r.length) {
+            json_reply(fd, 403, "{\"error\":\"Pair this device and open the app directly before restarting.\"}"); return;
+        }
+        pthread_mutex_lock(&terminal_lock);
+        if (restarting || !server.config.restart) {
+            pthread_mutex_unlock(&terminal_lock);
+            json_reply(fd, 503, "{\"error\":\"CLI restart is unavailable or already in progress.\"}"); return;
+        }
+        restarting = 1;
+        if (terminal_client >= 0) shutdown(terminal_client, SHUT_RDWR);
+        pthread_mutex_unlock(&terminal_lock);
+        int result = server.config.restart(), error = errno;
+        pthread_mutex_lock(&terminal_lock);
+        restarting = 0;
+        pthread_mutex_unlock(&terminal_lock);
+        if (result) {
+            char message[256];
+            snprintf(message, sizeof(message), "{\"error\":\"Could not restart Codex: %s. Try Restart CLI again after checking the payload.\"}", strerror(error));
+            json_reply(fd, 503, message);
+        } else json_reply(fd, 200, "{\"restarted\":true}");
+        return;
+    }
     unsigned cols = 0, rows = 0; char tail;
     if (sscanf(r.path, "/terminal/codex?cols=%u&rows=%u%c", &cols, &rows, &tail) == 2) {
         if (session < 0) json_reply(fd, 401, "{\"error\":\"Pair this device first.\"}");
@@ -201,7 +239,7 @@ static void handle(int fd) {
     }
     if (!strcmp(r.path, "/api/status") && !strcmp(r.method, "GET")) {
         char data[160];
-        snprintf(data, sizeof(data), "{\"paired\":%s,\"fixture\":%s,\"version\":\"0.1.0-beta-dev\"}", session >= 0 ? "true" : "false", server.fixture ? "true" : "false");
+        snprintf(data, sizeof(data), "{\"paired\":%s,\"fixture\":%s,\"version\":\"" PS5_AI_VERSION "\"}", session >= 0 ? "true" : "false", server.fixture ? "true" : "false");
         json_reply(fd, 200, data); return;
     }
     if (!strcmp(r.path, "/api/unpair") && !strcmp(r.method, "POST")) {
@@ -234,6 +272,18 @@ static void *client_main(void *arg) {
     return NULL;
 }
 
+static int start_client(pthread_t *thread, int *argument) {
+    /* CLI installation and the native loader run from a client worker. The
+     * console's default pthread stack is not a portable capacity guarantee. */
+    pthread_attr_t attributes;
+    int error = pthread_attr_init(&attributes);
+    if (error) return error;
+    error = pthread_attr_setstacksize(&attributes, 1024 * 1024);
+    if (!error) error = pthread_create(thread, &attributes, client_main, argument);
+    pthread_attr_destroy(&attributes);
+    return error;
+}
+
 static void *accept_main(void *unused) {
     (void)unused;
     for (;;) {
@@ -248,7 +298,7 @@ static void *accept_main(void *unused) {
         int *argument = malloc(sizeof(int));
         pthread_t thread;
         if (argument) *argument = fd;
-        if (!argument || pthread_create(&thread, NULL, client_main, argument)) {
+        if (!argument || start_client(&thread, argument)) {
             free(argument); close(fd);
             pthread_mutex_lock(&server.lock); server.clients--; pthread_mutex_unlock(&server.lock);
         } else pthread_detach(thread);

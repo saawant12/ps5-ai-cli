@@ -12,7 +12,8 @@ manifest = {'applicationCategoryType': 65536, 'titleId': title,
             'deeplinkUri': f'http://127.0.0.1:{port}/?console=1'}
 lines = ['/* Generated; do not edit. */']
 for name, data in [('launcher_manifest', (json.dumps(manifest, indent=2)+'\n').encode()),
-                   ('launcher_icon', (root/'launcher/sce_sys/icon0.png').read_bytes())]:
+                   ('launcher_icon', (root/'launcher/sce_sys/icon0.png').read_bytes()),
+                   ('launcher_legacy_icon', (root/'launcher/legacy/icon0-v1.png').read_bytes())]:
     lines.append(f'static const unsigned char {name}[] = {{'+','.join(map(str, data))+'};')
 (root/'build').mkdir(exist_ok=True)
 (root/'build/launcher.h').write_text('\n'.join(lines)+'\n')

@@ -13,7 +13,7 @@ python3 tools/embed-runtime.py
 python3 tools/terminal-build-id.py
 cc=/opt/ps5-payload-sdk/bin/prospero-clang
 includes=(-I/opt/ps5-payload-sdk/target/user/homebrew/include -Ibuild -Ilauncher)
-for name in gateway http websocket native-terminal runtime-image runtime-tools trust-store; do
+for name in gateway http websocket native-terminal cli-process runtime-image runtime-tools trust-store; do
   "$cc" -O2 -Wall -Wextra -Werror "${includes[@]}" -c "app/$name.c" -o "$PS5_NATIVE_DIR/terminal-$name.o"
 done
 for name in sdk-elf sdk-spawn; do

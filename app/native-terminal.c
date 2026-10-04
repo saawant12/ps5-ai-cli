@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
- * A raw byte terminal for the in-process CLI, not a general-purpose kernel PTY.
+ * A raw byte terminal for the CLI, not a general-purpose kernel PTY.
  * Window changes are delivered through SIGWINCH. Only our actual stdio socket
  * is adapted; files, pipes, and child-program descriptors retain native errors.
  */
@@ -16,14 +16,14 @@
 #include <termios.h>
 #include <unistd.h>
 
-static int channel[2] = {-1, -1}, attached, started, installed;
+static int channel[2] = {-1, -1}, attached, started, installed, control = -1;
 static struct termios attributes;
 static struct winsize dimensions = {.ws_col = 80, .ws_row = 24};
 static struct stat identity;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t selected = PTHREAD_COND_INITIALIZER;
 
-int ps5_terminal_prepare(void) {
+int ps5_terminal_reserve_stdio(void) {
     /* Reserve standard descriptors before gateway threads create sockets. */
     for (int fd = 0; fd <= STDERR_FILENO; fd++) {
         if (fcntl(fd, F_GETFD) >= 0) continue;
@@ -36,15 +36,53 @@ int ps5_terminal_prepare(void) {
             if (result < 0) { errno = error; return -1; }
         }
     }
+    return 0;
+}
+
+static void initialize_attributes(void) {
+    memset(&attributes, 0, sizeof(attributes));
+    attributes.c_cflag = CS8 | CREAD | CLOCAL;
+    attributes.c_cc[VMIN] = 1;
+    cfsetispeed(&attributes, B38400); cfsetospeed(&attributes, B38400);
+}
+
+static int read_dimensions(void) {
+    struct winsize next;
+    int received = 0;
+    ssize_t size;
+    for (;;) {
+        size = recv(control, &next, sizeof(next), MSG_DONTWAIT);
+        if (size < 0 && errno == EINTR) continue;
+        if (size <= 0) break;
+        if (size != sizeof(next) || next.ws_col < 20 || next.ws_col > 500 ||
+            next.ws_row < 5 || next.ws_row > 200) { errno = EINVAL; return -1; }
+        dimensions = next;
+        received = 1;
+    }
+    if (size < 0 && errno != EAGAIN && errno != EWOULDBLOCK) return -1;
+    return received;
+}
+
+int ps5_terminal_adopt(int control_fd) {
+    struct stat info;
+    if (control_fd <= 2 || fstat(control_fd, &info) || !S_ISSOCK(info.st_mode) ||
+        fstat(0, &identity) || !S_ISSOCK(identity.st_mode)) { errno = EINVAL; return -1; }
+    if (fcntl(control_fd, F_SETFD, FD_CLOEXEC) < 0) return -1;
+    control = control_fd;
+    if (read_dimensions() != 1) return -1;
+    initialize_attributes();
+    installed = 1;
+    return 0;
+}
+
+int ps5_terminal_prepare(void) {
+    if (ps5_terminal_reserve_stdio()) return -1;
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, channel)) return -1;
     for (int i = 0; i < 2; i++) {
         if (fcntl(channel[i], F_SETFD, FD_CLOEXEC) < 0) goto fail;
     }
     if (fcntl(channel[0], F_SETFL, O_NONBLOCK) < 0) goto fail;
-    memset(&attributes, 0, sizeof(attributes));
-    attributes.c_cflag = CS8 | CREAD | CLOCAL;
-    attributes.c_cc[VMIN] = 1;
-    cfsetispeed(&attributes, B38400); cfsetospeed(&attributes, B38400);
+    initialize_attributes();
     return 0;
 fail:
     close(channel[0]); close(channel[1]); channel[0] = channel[1] = -1;
@@ -147,7 +185,10 @@ int __wrap_ioctl(int fd, unsigned long request, ...) {
     if (virtual_fd(fd)) {
         if (request == TIOCGWINSZ) {
             if (!argument) { errno = EFAULT; return -1; }
-            pthread_mutex_lock(&lock); *(struct winsize *)argument = dimensions; pthread_mutex_unlock(&lock);
+            pthread_mutex_lock(&lock);
+            if (control >= 0 && read_dimensions() < 0) { pthread_mutex_unlock(&lock); return -1; }
+            *(struct winsize *)argument = dimensions;
+            pthread_mutex_unlock(&lock);
             return 0;
         }
         if (request == TIOCGETA) return __wrap_tcgetattr(fd, argument);

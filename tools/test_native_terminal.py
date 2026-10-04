@@ -2,11 +2,14 @@
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
 
 @unittest.skipUnless(shutil.which('cc'), 'a C compiler is required')
+@unittest.skipUnless(sys.platform == 'darwin' or sys.platform.startswith('freebsd'),
+                     'the native adapter uses the BSD ioctl ABI')
 class NativeTerminalTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -28,3 +31,6 @@ class NativeTerminalTests(unittest.TestCase):
 
     def test_missing_standard_descriptors_do_not_overwrite_gateway(self):
         subprocess.run([str(self.binary), 'closed-stdio'], check=True, timeout=5)
+
+    def test_child_terminal_reads_resize_from_private_control_socket(self):
+        subprocess.run([str(self.binary), 'child-control'], check=True, timeout=5)

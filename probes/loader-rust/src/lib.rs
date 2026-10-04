@@ -61,7 +61,7 @@ pub unsafe extern "C" fn ps5_rust_loader_probe(directory: *const c_char) -> i32 
                 failed = true;
             }
         }
-        if unsafe { ps5_probe_has_shell() } != 0 && !failed {
+        if unsafe { ps5_probe_has_shell() } != 0 {
             let path = std::path::Path::new(std::ffi::OsStr::from_bytes(directory.to_bytes()));
             if let Err(error) = native_pipe::run(path).await {
                 println!("Codex native pipe: FAIL: {error}");

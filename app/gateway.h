@@ -12,6 +12,7 @@ struct ui_config {
     int (*attach)(unsigned columns, unsigned rows);
     void (*resize)(unsigned columns, unsigned rows);
     void (*detach)(void);
+    int (*restart)(void);
 };
 /* Binds synchronously, then serves on detached native threads. */
 int ps5_ui_start(const struct ui_config *config);

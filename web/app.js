@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 'use strict';
 const $ = id => document.getElementById(id);
-let socket = null, terminal = null, fit = null, paired = false, selected = false, connecting = false;
+let socket = null, terminal = null, fit = null, paired = false, selected = false, connecting = false, restarting = false;
 const consoleMode = new URLSearchParams(location.search).has('console');
 if (consoleMode) document.body.classList.add('console-mode');
 let controllerMode = 'terminal';
@@ -9,6 +9,10 @@ let controllerFocus = null, activatingControl = false;
 const encoder = new TextEncoder();
 const keyBytes = {esc:'\x1b',tab:'\t',up:'\x1b[A',down:'\x1b[B',left:'\x1b[D',right:'\x1b[C',interrupt:'\x03',enter:'\r'};
 function notice(message) { $('notice').textContent = message; $('notice').hidden = !message; }
+function focusPicker() {
+  $('launch-codex').focus();
+  if (consoleMode) controllerFocus = $('launch-codex');
+}
 async function request(path, body) {
   const response = await fetch(path, body === undefined ? {} : {method:'POST',headers:{'X-PS5-Client':'1'},body});
   const data = await response.json();
@@ -16,14 +20,28 @@ async function request(path, body) {
   return data;
 }
 function send(data) {
-  if (socket?.readyState !== WebSocket.OPEN) return;
+  if (socket?.readyState !== WebSocket.OPEN) {
+    notice('Reconnect to Codex before typing.');
+    return false;
+  }
+  terminal?.scrollToBottom();
   const bytes = encoder.encode(data);
   for (let i = 0; i < bytes.length; i += 8192) socket.send(bytes.subarray(i, i + 8192));
+  return true;
+}
+function setInputConnected(connected) {
+  if (terminal) terminal.options.disableStdin = !connected;
+  for (const button of document.querySelectorAll('[data-key], #focus-prompt, #keyboard-send, #keyboard-enter')) button.disabled = !connected;
+}
+function focusPrompt() {
+  terminal?.scrollToBottom();
+  terminal?.focus();
 }
 function resize() {
   if (!terminal || $('terminal-view').hidden) return;
+  const columns = terminal.cols, rows = terminal.rows;
   fit.fit(); $('geometry').textContent = `${terminal.cols} × ${terminal.rows}`;
-  if (socket?.readyState === WebSocket.OPEN) socket.send(`resize:${terminal.cols}:${terminal.rows}`);
+  if (socket?.readyState === WebSocket.OPEN && (columns !== terminal.cols || rows !== terminal.rows)) socket.send(`resize:${terminal.cols}:${terminal.rows}`);
 }
 async function connect() {
   if (!paired) { $('pair-dialog').showModal(); return; }
@@ -40,10 +58,11 @@ async function connect() {
     terminal.onData(send);
     new ResizeObserver(resize).observe($('terminal'));
   }
+  setInputConnected(false);
   resize(); notice(''); $('connection').textContent = 'Opening Codex'; $('reconnect').hidden = true;
   const current = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/terminal/codex?cols=${terminal.cols}&rows=${terminal.rows}`);
   current.binaryType = 'arraybuffer'; socket = current; connecting = false; controllerMode = 'terminal';
-  current.onopen = () => { if (socket !== current) return; $('connection').textContent = 'Codex connected'; $('disconnect').hidden = false; resize(); terminal.focus(); };
+  current.onopen = () => { if (socket !== current) return; $('connection').textContent = 'Codex connected'; $('disconnect').hidden = false; setInputConnected(true); resize(); focusPrompt(); };
   current.onmessage = event => {
     if (socket !== current) return;
     if (event.data instanceof ArrayBuffer) terminal.write(new Uint8Array(event.data));
@@ -51,19 +70,48 @@ async function connect() {
   };
   current.onclose = () => {
     if (socket !== current) return;
-    socket = null; $('connection').textContent = 'Disconnected'; $('disconnect').hidden = true; $('reconnect').hidden = false;
-    notice('Terminal disconnected. Reconnect to the running CLI. If the payload exited, start it again on PS5.');
+    socket = null; $('disconnect').hidden = true; setInputConnected(false);
+    if (restarting) return;
+    $('connection').textContent = 'Disconnected'; $('reconnect').hidden = false;
+    notice('Terminal disconnected. Reconnect to the running CLI, or use Restart CLI if it stopped responding.');
   };
-  current.onerror = () => notice('Could not open Codex. Check that the payload is running and another device is not controlling the terminal.');
+  current.onerror = () => { if (!restarting) notice('Could not open Codex. If it exited, use Restart CLI. Another device may already control the terminal.'); };
 }
 $('launch-codex').onclick = connect;
 $('reconnect').onclick = async () => {
   try { paired = (await request('/api/status')).paired; connect(); } catch (error) { notice(error.message); }
 };
 $('disconnect').onclick = () => socket?.close(1000);
+$('focus-prompt').onclick = focusPrompt;
+$('restart-cli').onclick = async () => {
+  if (restarting) return;
+  restarting = true;
+  setInputConnected(false);
+  $('restart-cli').disabled = true;
+  $('restart-cli').textContent = 'Restarting…';
+  $('reconnect').hidden = true;
+  $('connection').textContent = 'Restarting Codex';
+  notice('Restarting Codex. Saved sign-in and files are kept.');
+  try {
+    await request('/api/cli/codex/restart', '');
+    const previous = socket; socket = null;
+    previous?.close();
+    terminal?.reset();
+    connecting = false;
+    await connect();
+  } catch (error) {
+    $('connection').textContent = 'Restart failed';
+    $('reconnect').hidden = false;
+    notice(error.message);
+  } finally {
+    restarting = false;
+    $('restart-cli').disabled = false;
+    $('restart-cli').textContent = 'Restart CLI';
+  }
+};
 $('pair-form').onsubmit = async event => {
   event.preventDefault(); $('pair-error').textContent = '';
-  try { await request('/api/pair', $('pair-code').value); paired = true; $('pair-code').value = ''; $('pair-dialog').close(); $('connection').textContent = 'PS5 connected'; if (selected) connect(); }
+  try { await request('/api/pair', $('pair-code').value); paired = true; $('pair-code').value = ''; $('pair-dialog').close(); $('connection').textContent = 'PS5 connected'; if (selected) connect(); else focusPicker(); }
   catch (error) { $('pair-error').textContent = error.message; }
 };
 $('pair-dialog').addEventListener('cancel', event => event.preventDefault());
@@ -74,10 +122,17 @@ $('keyboard-button').onclick = () => {
   (controllerFocus || $('keyboard-text')).focus();
 };
 $('keyboard-close').onclick = () => { controllerFocus = null; $('keyboard-dialog').close(); terminal?.focus(); };
-$('keyboard-send').onclick = () => { send($('keyboard-text').value); $('keyboard-text').value = ''; };
+$('keyboard-send').onclick = () => {
+  if (!$('keyboard-text').value) return;
+  if (socket?.readyState !== WebSocket.OPEN) { notice('Reconnect to Codex before typing.'); return; }
+  // Bracketed paste keeps a long or multiline message together in the CLI.
+  terminal.paste($('keyboard-text').value);
+  $('keyboard-text').value = '';
+};
 $('keyboard-enter').onclick = () => { if ($('keyboard-text').value) $('keyboard-send').click(); send('\r'); };
 function typeKeyboard(text, backspace = false) {
   const input = $('keyboard-text');
+  if (backspace && !input.value) { send('\x7f'); return; }
   let start = input.selectionStart, end = input.selectionEnd;
   if (backspace && start === end) start = Array.from(input.value.slice(0, start)).slice(0, -1).join('').length;
   input.setRangeText(text, start, end, 'end');
@@ -102,7 +157,7 @@ for (const [id, label, action] of [
   ['keyboard-shift','Shift',() => { keyboardShift = !keyboardShift; renderKeyboard(); }],
   ['keyboard-symbols','#+=',() => { keyboardSymbols = !keyboardSymbols; renderKeyboard(); }],
   ['keyboard-space','Space',() => typeKeyboard(' ')],
-  ['keyboard-backspace','⌫',() => typeKeyboard('', true)]
+  ['keyboard-backspace','Backspace',() => typeKeyboard('', true)]
 ]) {
   const button = document.createElement('button'); button.id = id; button.textContent = label; button.onclick = action;
   if (id === 'keyboard-backspace') button.setAttribute('aria-label', 'Backspace');
@@ -209,7 +264,7 @@ window.addEventListener('click', event => {
   if (!consoleMode || activatingControl || event.button > 0 || !(event.target instanceof Element)) return;
   const dialog = document.querySelector('dialog[open]');
   const focused = controllerFocus && controllerFocus.getClientRects().length ? controllerFocus : null;
-  const navigateControl = focused && (dialog ? dialog.contains(focused) : controllerMode === 'controls');
+  const navigateControl = focused && (dialog ? dialog.contains(focused) : !$('picker').hidden || controllerMode === 'controls');
   const terminalClick = !dialog && terminal && !$('terminal-view').hidden && controllerMode === 'terminal' &&
     (event.target.closest('#terminal') || event.target === document.body || event.target === document.documentElement);
   if (!navigateControl && !terminalClick) return;
@@ -221,6 +276,14 @@ window.addEventListener('click', event => {
 window.addEventListener('keydown', event => {
   document.body.classList.add('controller-input');
   if (event.key === 'Tab') controllerFocus = null;
+  if (!$('picker').hidden && !document.querySelector('dialog[open]') && ['ArrowUp','ArrowDown'].includes(event.key)) {
+    const choices = Array.from(document.querySelectorAll('.cli-option:not(:disabled)'));
+    const selectedIndex = choices.indexOf(document.activeElement);
+    const step = event.key === 'ArrowDown' ? 1 : -1;
+    const next = choices[(selectedIndex + step + choices.length) % choices.length];
+    if (next) { event.preventDefault(); event.stopImmediatePropagation(); controllerFocus = next; next.focus(); }
+    return;
+  }
   if ($('keyboard-dialog').open && event.target !== $('keyboard-text') && event.key.length === 1 &&
       !event.isComposing && !event.altKey && !event.ctrlKey && !event.metaKey) {
     event.preventDefault(); controllerFocus = null; typeKeyboard(event.key); $('keyboard-text').focus(); return;
@@ -240,6 +303,6 @@ window.addEventListener('keydown', event => {
       catch (_) { /* Remote clients still pair using the notification code. */ }
     }
     $('connection').textContent = paired ? 'PS5 connected' : 'Pair your device';
-    if (!paired) $('pair-dialog').showModal(); else $('launch-codex').focus();
+    if (!paired) $('pair-dialog').showModal(); else focusPicker();
   } catch (error) { $('connection').textContent = 'Unavailable'; notice(error.message); }
 })();

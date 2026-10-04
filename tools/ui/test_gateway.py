@@ -6,6 +6,8 @@ import subprocess
 import time
 import tempfile
 import socket
+import re
+import struct
 import unittest
 
 HOST = '127.0.0.1:8035'
@@ -110,6 +112,75 @@ class GatewayTests(unittest.TestCase):
         for path in ['/../LICENSE', '/%2e%2e/LICENSE', '/auth.json', '/api/status?extra=1']:
             with self.subTest(path=path):
                 self.assertEqual(self.request('GET', path)[0], 404)
+
+    def test_restart_requires_pairing_origin_client_and_empty_body(self):
+        path = '/api/cli/codex/restart'
+        _, result, _ = self.request('POST', '/api/pair', CODE, {'Origin': ORIGIN, 'X-PS5-Client': '1'})
+        cookie = result['Set-Cookie'].split(';')[0]
+        good = {'Origin': ORIGIN, 'X-PS5-Client': '1', 'Cookie': cookie}
+        for headers in ({}, {'Origin': ORIGIN, 'X-PS5-Client': '1'},
+                        {**good, 'Origin': 'https://attacker.example'},
+                        {'Origin': ORIGIN, 'Cookie': cookie}):
+            with self.subTest(headers=headers):
+                self.assertEqual(self.request('POST', path, '', headers)[0], 403)
+        self.assertEqual(self.request('POST', path, 'unexpected', good)[0], 403)
+        self.assertEqual(self.request('GET', path, headers=good)[0], 404)
+        self.assertEqual(self.request('POST', '/api/cli/unknown/restart', '', good)[0], 404)
+
+    def open_terminal(self, cookie):
+        s = socket.create_connection(('127.0.0.1', self.port), timeout=4)
+        s.sendall(('GET /terminal/codex?cols=100&rows=30 HTTP/1.1\r\n'
+                   f'Host: {HOST}\r\nOrigin: {ORIGIN}\r\nCookie: {cookie}\r\n'
+                   'Upgrade: websocket\r\nConnection: Upgrade\r\n'
+                   'Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n').encode())
+        header = b''
+        while not header.endswith(b'\r\n\r\n'): header += s.recv(1)
+        self.assertIn(b'101', header.split(b'\r\n')[0])
+        self.addCleanup(s.close)
+        return s
+
+    @staticmethod
+    def terminal_send(s, text):
+        data, mask = text.encode(), b'test'
+        size = bytes([0x80 | len(data)]) if len(data) < 126 else b'\xfe' + struct.pack('!H', len(data))
+        s.sendall(b'\x82' + size + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
+
+    def terminal_until(self, s, pattern):
+        def exact(size):
+            result = b''
+            while len(result) < size:
+                data = s.recv(size-len(result))
+                self.assertTrue(data, 'terminal closed before expected output')
+                result += data
+            return result
+        output = b''
+        for _ in range(100):
+            header = exact(2)
+            size = header[1] & 127
+            if size == 126: size = struct.unpack('!H', exact(2))[0]
+            elif size == 127: size = struct.unpack('!Q', exact(8))[0]
+            output += exact(size)
+            match = re.search(pattern, output)
+            if match: return match
+        self.fail('expected terminal output missing')
+
+    def test_restart_replaces_hung_cli_preserves_files_and_pairing(self):
+        _, result, _ = self.request('POST', '/api/pair', CODE, {'Origin': ORIGIN, 'X-PS5-Client': '1'})
+        cookie = result['Set-Cookie'].split(';')[0]
+        first = self.open_terminal(cookie)
+        self.terminal_send(first, 'export PS5_RESTART_TEST=old; printf saved > "$HOME/saved-state"; printf "OLD_PID=%s\\n" "$$"\r')
+        old_pid = self.terminal_until(first, rb'OLD_PID=(\d+)').group(1)
+        self.terminal_send(first, 'trap "" TERM; printf "HANG_READY\\n"; while :; do sleep 1; done\r')
+        self.terminal_until(first, rb'\r?\nHANG_READY\r?\n')
+        headers = {'Origin': ORIGIN, 'X-PS5-Client': '1', 'Cookie': cookie}
+        self.assertEqual(self.request('POST', '/api/cli/codex/restart', '', headers)[0], 200)
+        self.assertIn(b'"paired":true', self.request('GET', '/api/status', headers=headers)[2])
+        self.assertEqual((Path(self.temp.name)/'saved-state').read_text(), 'saved')
+        second = self.open_terminal(cookie)
+        self.terminal_send(second, 'printf "NEW_PID=%s VALUE=%s\\n" "$$" "${PS5_RESTART_TEST-unset}"\r')
+        match = self.terminal_until(second, rb'NEW_PID=(\d+) VALUE=(\w+)')
+        self.assertNotEqual(match.group(1), old_pid)
+        self.assertEqual(match.group(2), b'unset')
 
 if __name__ == '__main__':
     unittest.main()

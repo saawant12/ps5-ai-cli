@@ -63,7 +63,7 @@ class SDKELFTests(unittest.TestCase):
             (0x344, '<I', 9), (0x358, '<Q', 2**64 - 1),
             (0x360, '<Q', 25), (0x378, '<Q', 16),
             (0x4300, '<Q', 0x1ffc), (0x4300, '<Q', 2**64 - 1),
-            (0x4308, '<Q', 1),
+            (0x4308, '<Q', 2),
         ]
         for offset, format_, value in cases:
             with self.subTest(offset=offset, value=value):
@@ -75,9 +75,23 @@ class SDKELFTests(unittest.TestCase):
             data[0x4200:0x4200 + len(dependency)] = dependency
             self.assertEqual(self.valid(data), 0)
 
-    def test_generated_shell_when_available(self):
+    def test_absolute_symbol_relocation_retains_bounds_checks(self):
+        data = fixture()
+        struct.pack_into('<H', data, 60, 3)
+        struct.pack_into('<IIQQQQIIQQ', data, 0x380, 0, 11, 0, 0,
+                         0x4380, 48, 0, 0, 8, 24)
+        struct.pack_into('<QQq', data, 0x4300, 0x800, (1 << 32) | 1, 7)
+        self.assertEqual(self.valid(data), 1)
+        struct.pack_into('<Q', data, 0x4308, (2 << 32) | 1)
+        self.assertEqual(self.valid(data), 0)
+        struct.pack_into('<Q', data, 0x4308, (1 << 32) | 1)
+        struct.pack_into('<Q', data, 0x4300, 0x1ffc)
+        self.assertEqual(self.valid(data), 0)
+
+    def test_generated_payloads_when_available(self):
         root = Path(__file__).resolve().parents[1]
-        images = [root / 'build/shell/sh.elf', root / 'build/shell/sbase-box.elf']
+        images = [root / 'build/shell/sh.elf', root / 'build/shell/sbase-box.elf',
+                  root / 'build/ps5-ai-cli.elf']
         present = [path for path in images if path.exists()]
         if not present:
             self.skipTest('native runtime has not been built')

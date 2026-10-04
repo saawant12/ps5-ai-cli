@@ -182,9 +182,10 @@ int ps5_probe_spawn_loader(const char *directory, int mode) {
         "printf 'stdout roundtrip\\n'; printf 'stderr roundtrip\\n' >&2; exit 37",
         "ps5-shell-probe", "argument with spaces", NULL};
     if (mode == 5) { image = (uint8_t *)ps5_shell_probe; command_args = shell_args; }
-    char *tool_args[] = {"sh", "-c",
+    char *tool_args[] = {"sh", "-lc",
         "set -e; IFS= read -r value; [ \"$value\" = 'input roundtrip' ]; "
-        "mkdir tool-dir; printf 'alpha\\nbeta\\n' > tool-dir/input; "
+        "mkdir tool-dir; [ -d tool-dir ]; cd tool-dir; cd ..; "
+        "printf 'alpha\\nbeta\\n' > tool-dir/input; "
         "cat tool-dir/input | grep -e '^beta$' | sed 's/beta/gamma/' > tool-dir/output; "
         "IFS= read -r value < tool-dir/output; [ \"$value\" = gamma ]; "
         "cp tool-dir/output tool-dir/copied; mv tool-dir/copied tool-dir/moved; "
@@ -196,7 +197,8 @@ int ps5_probe_spawn_loader(const char *directory, int mode) {
         "printf '%s\\n' tool-dir/input | xargs cat > tool-dir/from-xargs; "
         "cmp tool-dir/input tool-dir/from-xargs; "
         "rm tool-dir/input tool-dir/output tool-dir/moved tool-dir/script tool-dir/from-xargs; "
-        "rmdir tool-dir; printf 'stdout roundtrip\\n'; printf 'stderr roundtrip\\n' >&2; exit 37",
+        "rmdir tool-dir; [ ! -d tool-dir ]; "
+        "printf 'stdout roundtrip\\n'; printf 'stderr roundtrip\\n' >&2; exit 37",
         "ps5-tools-probe", NULL};
     if (mode == 6) { image = (uint8_t *)ps5_shell_probe; command_args = tool_args; }
 #endif

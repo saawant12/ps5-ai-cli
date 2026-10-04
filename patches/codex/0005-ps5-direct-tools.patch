@@ -1,0 +1,69 @@
+diff --git a/codex-rs/models-manager/src/model_info.rs b/codex-rs/models-manager/src/model_info.rs
+index 88ade7c..8ed22a0 100644
+--- a/codex-rs/models-manager/src/model_info.rs
++++ b/codex-rs/models-manager/src/model_info.rs
+@@ -17,6 +17,15 @@ pub const BASE_INSTRUCTIONS: &str = include_str!("../prompt.md");
+ const PERSONALITY_SECTION_HEADER: &str = "# Personality";
+ 
+ pub fn with_config_overrides(mut model: ModelInfo, config: &ModelsManagerConfig) -> ModelInfo {
++    // The PS5 payload provides native command tools, but has no V8 code-mode
++    // host. Normalize catalog metadata before tool selection so remote model
++    // refreshes cannot select an unavailable runtime. Direct tools still use
++    // the normal execution policy, approval and environment handling.
++    #[cfg(target_env = "ps5")]
++    {
++        model.tool_mode = Some(codex_protocol::openai_models::ToolMode::Direct);
++    }
++
+     if let Some(context_window) = config.model_context_window {
+         model.context_window = Some(
+             model
+diff --git a/codex-rs/models-manager/src/model_info_overrides_tests.rs b/codex-rs/models-manager/src/model_info_overrides_tests.rs
+index 06c114e..c075443 100644
+--- a/codex-rs/models-manager/src/model_info_overrides_tests.rs
++++ b/codex-rs/models-manager/src/model_info_overrides_tests.rs
+@@ -1,11 +1,44 @@
+ use crate::ModelsManagerConfig;
+ use crate::manager::ModelsManager;
++use codex_protocol::openai_models::ModelsResponse;
++use codex_protocol::openai_models::ToolMode;
+ use codex_protocol::openai_models::TruncationPolicyConfig;
+ use pretty_assertions::assert_eq;
+ use tempfile::TempDir;
+ 
+ use super::TestModelsEndpoint;
+ use super::openai_manager_for_tests;
++use super::remote_model;
++use super::static_manager_for_tests;
++
++#[tokio::test]
++async fn catalog_tool_mode_respects_platform_without_changing_other_metadata() {
++    for tool_mode in [
++        None,
++        Some(ToolMode::Direct),
++        Some(ToolMode::CodeMode),
++        Some(ToolMode::CodeModeOnly),
++    ] {
++        let mut catalog_model = remote_model("native-tools", "Native tools", /*priority*/ 0);
++        catalog_model.tool_mode = tool_mode;
++        let manager = static_manager_for_tests(ModelsResponse {
++            models: vec![catalog_model.clone()],
++        });
++        let config = ModelsManagerConfig {
++            model_context_window: Some(100_000),
++            ..Default::default()
++        };
++
++        let actual = manager.get_model_info("native-tools", &config).await;
++        let mut expected = catalog_model;
++        expected.context_window = Some(100_000);
++        expected.used_fallback_model_metadata = false;
++        if cfg!(target_env = "ps5") {
++            expected.tool_mode = Some(ToolMode::Direct);
++        }
++        assert_eq!(actual, expected);
++    }
++}
+ 
+ #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+ async fn offline_model_info_without_tool_output_override() {

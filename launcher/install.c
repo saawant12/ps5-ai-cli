@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 static const unsigned char owner[] = "PS5 AI CLI " PS5_AI_TITLE " launcher v1\n";
+static const unsigned char icon_owner[] = "PS5 AI CLI " PS5_AI_TITLE " icon v2\n";
 static const char *title_id = PS5_AI_TITLE;
 static char last_error[192];
 
@@ -101,6 +102,16 @@ done:
     return result;
 }
 
+static int upgrade_legacy_icon(int parent) {
+    const char *temporary = ".ps5-ai-cli-icon-v2.tmp";
+    if (ensure_file(parent, temporary, launcher_icon, sizeof launcher_icon)) return -1;
+    /* Only the exact previously shipped image may be replaced. An existing
+     * modified icon or symlink is preserved, even in an owned title folder. */
+    if (matches(parent, "icon0.png", launcher_legacy_icon, sizeof launcher_legacy_icon) != 1) return -1;
+    if (renameat(parent, temporary, parent, "icon0.png")) return -1;
+    return fsync(parent);
+}
+
 static int open_dir(int parent, const char *name, bool create) {
     if (create && mkdirat(parent, name, 0755) && errno != EEXIST)
         return -1;
@@ -116,7 +127,7 @@ static int absent(int parent, const char *name) {
 
 int ps5_ai_launcher_ensure_at(int state_fd, const char *user_parent, int (*prepare)(void),
                              int (*register_title)(void)) {
-    int up = -1, user = -1, us = -1, result = -1;
+    int up = -1, user = -1, us = -1, result = -1, prepared = 0;
     const char *step = "open-app-parent";
     last_error[0] = '\0';
     errno = 0;
@@ -144,14 +155,28 @@ int ps5_ai_launcher_ensure_at(int state_fd, const char *user_parent, int (*prepa
         errno = EINVAL;
         goto done;
     }
+    /* The user may delete the home-screen app while retaining saved data.
+     * Recreate a missing owned title; an existing conflicting title is still
+     * checked file by file below and is never replaced. */
+    if (ready) {
+        step = "check-removed-title";
+        int missing = absent(up, title_id);
+        if (missing < 0) goto done;
+        if (missing) ready = 0;
+    }
+    step = "verify-icon-record";
+    int icon_ready = matches(state_fd, "ps5-ai-cli-launcher-icon-v2", icon_owner, sizeof icon_owner - 1);
+    if (icon_ready < 0 || (icon_ready && !owned)) goto done;
     if (!ready) {
         step = "prepare-app-registration";
         errno = 0;
         if (prepare())
             goto done;
+        prepared = 1;
         step = "write-ownership-record";
         if (ensure_file(state_fd, "ps5-ai-cli-launcher-owned-v1", owner, sizeof owner - 1))
             goto done;
+        owned = 1;
         step = "sync-ownership-directory";
         if (fsync(state_fd))
             goto done;
@@ -164,24 +189,30 @@ int ps5_ai_launcher_ensure_at(int state_fd, const char *user_parent, int (*prepa
     us = open_dir(user, "sce_sys", !ready);
     if (us < 0)
         goto done;
-    struct {
-        int fd;
-        const char *name;
-        const unsigned char *data;
-        size_t length;
-    } files[] = {{us, "param.json", launcher_manifest, sizeof launcher_manifest},
-                 {us, "icon0.png", launcher_icon, sizeof launcher_icon}};
-    for (size_t i = 0; i < sizeof files / sizeof files[0]; i++) {
-        step = i ? "verify-or-write-icon" : "verify-or-write-manifest";
-        if (ready ? matches(files[i].fd, files[i].name, files[i].data, files[i].length) != 1
-                  : ensure_file(files[i].fd, files[i].name, files[i].data, files[i].length)) {
-            puts("PS5 AI CLI launcher: app files differ, are missing, or cannot be written; preserved.");
-            goto done;
+    step = "verify-or-write-manifest";
+    if (ready ? matches(us, "param.json", launcher_manifest, sizeof launcher_manifest) != 1
+              : ensure_file(us, "param.json", launcher_manifest, sizeof launcher_manifest)) goto done;
+    step = "verify-or-write-icon";
+    int icon_match = matches(us, "icon0.png", launcher_icon, sizeof launcher_icon);
+    if (icon_match != 1) {
+        int legacy = owned && matches(us, "icon0.png", launcher_legacy_icon, sizeof launcher_legacy_icon) == 1;
+        if (icon_match != 0 && !legacy) goto done;
+        if (!prepared) {
+            step = "prepare-icon-registration";
+            if (prepare()) goto done;
+            prepared = 1;
         }
+        step = "install-icon";
+        if (legacy ? upgrade_legacy_icon(us) : ensure_file(us, "icon0.png", launcher_icon, sizeof launcher_icon)) goto done;
+        icon_ready = 0;
     }
-    if (ready) {
+    if (ready && icon_ready) {
         result = 0;
         goto done;
+    }
+    if (!prepared) {
+        step = "prepare-icon-registration";
+        if (prepare()) goto done;
     }
     step = "register-title";
     errno = 0;
@@ -190,6 +221,8 @@ int ps5_ai_launcher_ensure_at(int state_fd, const char *user_parent, int (*prepa
     step = "write-ready-record";
     if (ensure_file(state_fd, "ps5-ai-cli-launcher-ready-v1", owner, sizeof owner - 1))
         goto done;
+    step = "write-icon-record";
+    if (ensure_file(state_fd, "ps5-ai-cli-launcher-icon-v2", icon_owner, sizeof icon_owner - 1)) goto done;
     step = "sync-ready-directory";
     if (fsync(state_fd))
         goto done;

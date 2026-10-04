@@ -40,6 +40,14 @@ case "${1:-test}" in
     cd vendor/codex/codex-rs
     just fix -p codex-shell-command --locked
     ;;
+  test-models)
+    cd vendor/codex/codex-rs
+    just test -p codex-models-manager --locked
+    ;;
+  fix-models)
+    cd vendor/codex/codex-rs
+    just fix -p codex-models-manager --locked
+    ;;
   fmt)
     cd vendor/codex/codex-rs
     just fmt
@@ -48,5 +56,5 @@ case "${1:-test}" in
     cd vendor/codex
     just bazel-lock-update
     ;;
-  *) echo 'Usage: tools/validate-upstream.sh [test|test-remote|test-process|fix-process|test-shell|fix-shell|fmt|lock]' >&2; exit 2 ;;
+  *) echo 'Usage: tools/validate-upstream.sh [test|test-remote|test-process|fix-process|test-shell|fix-shell|test-models|fix-models|fmt|lock]' >&2; exit 2 ;;
 esac

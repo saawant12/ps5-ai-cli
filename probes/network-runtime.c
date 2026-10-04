@@ -100,8 +100,16 @@ done:
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
     curl_easy_getinfo(curl, CURLINFO_SSL_VERIFYRESULT, &verify);
     curl_easy_getinfo(curl, CURLINFO_OS_ERRNO, &os_error);
+    double dns = 0, connect = 0, tls = 0, first_byte = 0, total = 0;
+    curl_easy_getinfo(curl, CURLINFO_NAMELOOKUP_TIME, &dns);
+    curl_easy_getinfo(curl, CURLINFO_CONNECT_TIME, &connect);
+    curl_easy_getinfo(curl, CURLINFO_APPCONNECT_TIME, &tls);
+    curl_easy_getinfo(curl, CURLINFO_STARTTRANSFER_TIME, &first_byte);
+    curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total);
     printf("%s: curl=%d http=%ld verify=%ld os_errno=%ld error=%s\n",
            label, (int)result, status, verify, os_error, error);
+    printf("%s timing: dns=%.3fs connect=%.3fs tls=%.3fs first_byte=%.3fs total=%.3fs\n",
+           label, dns, connect, tls, first_byte, total);
     curl_easy_cleanup(curl);
     curl_slist_free_all(resolved);
     return result != expected;
@@ -134,6 +142,7 @@ int main(void) {
     /* The default-root result is informational; embedded roots must work. */
     request("default roots", "https://auth.openai.com/", 0, CURLE_OK);
     int failed = request("embedded roots", "https://auth.openai.com/", 1, CURLE_OK);
+    failed += request("ChatGPT public endpoint", "https://chatgpt.com/", 1, CURLE_OK);
     failed += request("untrusted certificate", "https://self-signed.badssl.com/", 1,
                       CURLE_PEER_FAILED_VERIFICATION);
     failed += request("wrong hostname", "https://wrong.host.badssl.com/", 1,

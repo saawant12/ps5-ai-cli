@@ -70,7 +70,16 @@ pub async fn run(directory: &Path) -> io::Result<()> {
     let mut expected_stdout = input;
     expected_stdout.extend_from_slice(b"check-ok");
     if status != 0 || stdout != expected_stdout || stderr != b"pipe-error" || edited != expected {
-        return Err(io::Error::other("pipe file-edit/backpressure check failed"));
+        return Err(io::Error::other(format!(
+            "pipe file-edit/backpressure check failed: status={status}, stdout={}/{}, stdout_matches={}, stderr={:?}, edited={}/{}, edited_matches={}",
+            stdout.len(),
+            expected_stdout.len(),
+            stdout == expected_stdout,
+            String::from_utf8_lossy(&stderr[..stderr.len().min(8192)]),
+            edited.len(),
+            expected.len(),
+            edited == expected,
+        )));
     }
     println!("Codex pipe transport: stdin + large stdout + stderr + file edit + check: PASS");
     Ok(())

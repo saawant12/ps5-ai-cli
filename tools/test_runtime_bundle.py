@@ -51,6 +51,13 @@ int ps5_terminal_attach(unsigned a, unsigned b) { (void)a; (void)b; abort(); }
 void ps5_terminal_resize(unsigned a, unsigned b) { (void)a; (void)b; abort(); }
 void ps5_terminal_detach(void) { abort(); }
 int ps5_terminal_wait(void) { abort(); }
+int ps5_terminal_adopt(int fd) { (void)fd; abort(); }
+int ps5_cli_prepare(void) { abort(); }
+int ps5_cli_attach(unsigned a, unsigned b) { (void)a; (void)b; abort(); }
+void ps5_cli_resize(unsigned a, unsigned b) { (void)a; (void)b; abort(); }
+void ps5_cli_detach(void) { abort(); }
+int ps5_cli_restart(void) { abort(); }
+void ps5_cli_poll(void) { abort(); }
 int ps5_ui_start(const struct ui_config *config) { (void)config; abort(); }
 int ps5_ai_launcher_ensure(int fd) { (void)fd; abort(); }
 const char *ps5_ai_launcher_registration_method(void) { abort(); }

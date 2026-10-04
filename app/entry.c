@@ -2,9 +2,11 @@
 #include "config.h"
 #include "gateway.h"
 #include "native-terminal.h"
+#include "cli-process.h"
 #include "../launcher/install.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +35,12 @@ static int directory(const char *path) {
     if (fd < 0) return -1;
     close(fd); return 0;
 }
+static int run_terminal(void) {
+    setvbuf(stdout, NULL, _IONBF, 0); setvbuf(stderr, NULL, _IONBF, 0);
+    char *args[] = {"codex", "--no-alt-screen", "-c", "cli_auth_credentials_store=\"file\"",
+        "-c", "mcp_oauth_credentials_store=\"file\"", NULL};
+    return __real_main((int)(sizeof(args)/sizeof(args[0])-1), args);
+}
 int __wrap_main(int argc, char **argv) {
     /* Self re-execs must preserve the caller's arguments, environment and cwd.
      * They run an upstream CLI/helper entry, without starting another gateway. */
@@ -40,6 +48,16 @@ int __wrap_main(int argc, char **argv) {
     const char *name = strrchr(arg0, '/');
     name = name ? name + 1 : arg0;
     const char *arg1 = argc > 1 && argv[1] ? argv[1] : "";
+    if (!strcmp(arg1, "--ps5-ai-cli-terminal")) {
+        if (argc != 3 || !argv[2] || !*argv[2]) return 1;
+        char *end;
+        errno = 0;
+        long fd = strtol(argv[2], &end, 10);
+        if (errno || *end || fd <= 2 || fd > INT_MAX || ps5_terminal_adopt((int)fd) ||
+            ps5_set_executable_path(PS5_AI_STATE "/runtime/codex.elf")) return 1;
+        signal(SIGPIPE, SIG_IGN);
+        return run_terminal();
+    }
     if (!strcmp(arg0, PS5_AI_STATE "/runtime/codex.elf") ||
         !strcmp(name, "apply_patch") || !strcmp(name, "applypatch") ||
         !strcmp(name, "codex-execve-wrapper") ||
@@ -60,9 +78,10 @@ int __wrap_main(int argc, char **argv) {
 #ifdef PS5_DEV_PAIRING
     memcpy(code, PS5_DEV_PAIR_CODE, sizeof(code));
 #endif
-    if (ps5_terminal_prepare()) return 1;
+    if (ps5_cli_prepare()) return 1;
     struct ui_config config = {.port = PS5_AI_PORT, .pair_code = code,
-        .attach = ps5_terminal_attach, .resize = ps5_terminal_resize, .detach = ps5_terminal_detach};
+        .attach = ps5_cli_attach, .resize = ps5_cli_resize, .detach = ps5_cli_detach,
+        .restart = ps5_cli_restart};
     if (ps5_ui_start(&config)) {
         notify("PS5 AI CLI could not start. Its port may already be in use. No shortcut files were changed.");
         return 1;
@@ -93,16 +112,5 @@ int __wrap_main(int argc, char **argv) {
     snprintf(message, sizeof(message), "PS5 AI CLI :%d | Pair: %s | %s", PS5_AI_PORT, code,
         installed >= 0 ? "Open the PS5 AI CLI icon" : "Shortcut unavailable; browser terminal is running");
     notify(message);
-    if (ps5_terminal_wait()) return 1;
-    if (ps5_install_runtime_image() || ps5_install_runtime_tools()) {
-        char failure[192];
-        snprintf(failure, sizeof(failure), "PS5 AI CLI runtime setup failed: %s. Check its installed ELF in Payload Manager.", strerror(errno));
-        notify(failure);
-        perror("PS5 AI CLI could not install its runtime image");
-        return 1;
-    }
-    setvbuf(stdout, NULL, _IONBF, 0); setvbuf(stderr, NULL, _IONBF, 0);
-    char *args[] = {"codex", "--no-alt-screen", "-c", "cli_auth_credentials_store=\"file\"",
-        "-c", "mcp_oauth_credentials_store=\"file\"", NULL};
-    return __real_main((int)(sizeof(args)/sizeof(args[0])-1), args);
+    for (;;) { ps5_cli_poll(); usleep(100000); }
 }

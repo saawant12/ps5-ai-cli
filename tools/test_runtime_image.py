@@ -88,3 +88,22 @@ class RuntimeImageTests(unittest.TestCase):
         (folder / 'ps5-ai-cli-new.elf').write_bytes(self.image())
         self.install()
         self.assertEqual((runtime / 'codex.elf').read_bytes(), self.image())
+
+    def test_upgrade_and_rollback_preserve_saved_data(self):
+        folder = self.directory / 'payloads/ps5-ai-cli'
+        folder.mkdir()
+        (folder/'ps5-ai-cli.elf').write_bytes(self.image())
+        saved = self.directory/'state/saved-data'
+        saved.write_bytes(b'preserved user data')
+        self.install()
+        runtime = self.directory/'state/runtime/codex.elf'
+        original = runtime.read_bytes()
+        # Another owned build can be newer or older: replacement depends on
+        # ownership and the running image, never a lexical version comparison.
+        runtime.write_bytes(self.image(b'f' * 32))
+        self.install()
+        self.assertEqual(runtime.read_bytes(), original)
+        runtime.write_bytes(self.image(b'0' * 32))
+        self.install()
+        self.assertEqual(runtime.read_bytes(), original)
+        self.assertEqual(saved.read_bytes(), b'preserved user data')

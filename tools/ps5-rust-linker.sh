@@ -21,7 +21,7 @@ native=/work/build
 if [[ "${PS5_TERMINAL:-0}" == 1 ]]; then
   native="${PS5_NATIVE_DIR:-/work/build}"
   entry=("$native/terminal-entry.o")
-  for name in gateway http websocket native-terminal runtime-image runtime-tools trust-store; do
+  for name in gateway http websocket native-terminal cli-process runtime-image runtime-tools trust-store; do
     extra+=("$native/terminal-$name.o")
   done
   extra+=("$native/launcher-install.o" "$native/launcher-platform_ps5.o"

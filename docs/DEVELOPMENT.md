@@ -54,8 +54,9 @@ shortcut, native shell and file tools, then builds `build/ps5-ai-cli.elf` throug
 a locked Cargo invocation. The pinned shell/loader sources are fetched by Make;
 the native build checks and patches those sources without downloading them.
 `make terminal-release` selects the optimized profile. Node.js/npm is required
-to install the pinned web packages. Optimized development builds have reached
-native onboarding; complete beta behavior has not yet passed hardware tests.
+to install the pinned web packages. Native sign-in, replies, CLI restart, and
+a bounded model-driven shell coding task have passed on the tested console.
+See the README for the remaining compatibility limits.
 
 `make terminal-dev` is an optional faster relink from the last captured Rust
 build. The normal `make terminal` path does not depend on those captured objects.
@@ -70,6 +71,10 @@ Manager and copies it into its private runtime directory. Both grouped and
 per-upload Payload Manager directories are supported. It installs a versioned
 Dash shell and 28 sbase tools for native command execution; existing unrelated
 or modified runtime files are not silently overwritten.
+
+The PS5 model adapter selects Codex's direct tools for bundled, cached and remote
+model metadata. The V8-based `codex-code-mode-host` is not bundled for this target.
+Direct tools retain upstream execution-policy, approval and environment handling.
 
 The raw terminal bridge carries Codex input/output and window-size changes. It
 is not a kernel PTY and does not implement cooked terminal input or shell job
@@ -88,6 +93,24 @@ Browsers exposing the standard Gamepad API have mappings for X/Enter,
 Circle/Escape, Square/text entry, Triangle/Tab and Options/toolbar focus. These
 mappings pass browser simulations but do not establish physical PS5 support.
 The README lists the controls actually verified on the console.
+
+The gateway owns one CLI child in a separate process, so a CLI exit leaves the
+picker and restart endpoint available. A private datagram descriptor carries
+window sizes to the child's raw terminal adapter. Restart closes the attached
+relay, stops and reaps the owned child with bounded waits, and launches it again;
+it does not wipe credentials or workspace files. It does not automatically
+relaunch a CLI after an exit.
+
+`POST /api/cli/codex/restart` requires a paired browser session, matching Origin,
+client header and empty body. Other CLI names are unavailable. The host gateway
+suite covers a hung process restart, retained pairing and saved files. Native
+supervisor tests cover forced termination, reaping, explicit relaunch and an
+unrelated process surviving a restart. On the tested PS5, restart reaped the
+old Codex child and opened a new signed-in CLI while the gateway and unrelated
+payloads stayed running. Gateway workers use an explicit stack size for native
+runtime installation and loading. The SDK ELF validator checks the complete
+CLI image as well as the bundled tools, including the SDK's supported absolute
+64-bit symbol relocations.
 
 ## Console diagnostics
 
@@ -125,10 +148,11 @@ and does not install an autostart service.
 | Native child loader | Rust FFI launch with an active Tokio runtime passed arguments, environment, working directory, standard streams, exit status and cancellation checks |
 | Native command runtime | Codex command/pipe interfaces, large output, file-edit checks, shell pipelines, scripts, error statuses, and repeated tool workflows passed in isolated diagnostics |
 | Bundled shell and tools | Native first and repeat installation of the pinned Dash shell and 28 sbase tools passed |
+| Model-driven coding smoke test | Native Codex created a shell script, ran it, edited it, and verified exact outputs for explicit and default arguments |
 | HTTPS diagnostic | Native DNS and curl/OpenSSL verification of the login host passed with bundled CA roots; self-signed and wrong-host certificates were rejected |
 
-These diagnostics do not establish general `std::process::Command` compatibility
-or a complete interactive coding workflow. Versions and upstream hashes are recorded in
+These results do not establish general `std::process::Command` compatibility
+or support for broader project toolchains. Versions and upstream hashes are recorded in
 [sources.lock.json](../sources.lock.json).
 
 ## Validation
@@ -145,8 +169,42 @@ These checks run local shell commands; they do not run commands on the console.
 `Dockerfile.validation` and `tools/validate-upstream.sh` support selected upstream
 checks. Across the affected host test runs, 340 tests passed and nine were
 skipped. Formatting and Bazel lock regeneration also passed. These results do not
-represent a full upstream test-suite run or a complete PS5 coding task.
+represent a full upstream test-suite run. Native results are listed separately
+in the compatibility table above.
 The native command changes additionally passed the focused process suite
 (62 tests) and shell-command suite (192 tests). Bundle installation and helper
 entry checks run with `python3 -m unittest tools/test_runtime_bundle.py` in the
 Linux validation container after building and embedding the runtime assets.
+The model-selection adapter passed the scoped models-manager suite (55 tests).
+The command proxy's signal ownership, failed-launch restoration, and exit/signal
+propagation are covered by `python3 -m unittest tools.test_shell_exec`.
+
+The terminal adapter's host tests require macOS or FreeBSD because they exercise
+the BSD ioctl ABI. Runtime image/tool installation tests run on Linux. The
+installation suites use disposable trees to check first install, repeated
+install, owned runtime replacement in either version direction, deleted-shortcut
+recovery, and preservation of saved data and unrelated files.
+
+## Release packaging
+
+Release payloads must come from `make terminal-release` with development pairing
+disabled (the default). The build forces command tracing off. A release build
+uses a fresh eight-digit pairing code each time the gateway starts. The code
+accepts remote pairing for 15 minutes; paired browser sessions last eight hours.
+The PS5's local shortcut pairs through the loopback-only endpoint.
+
+Keep build logs, device details and test workspaces out of published archives.
+After reviewing the corresponding-source and notices archives, package the ELF:
+
+```sh
+python3 tools/package-release.py --build-root /path/to/clean-build \
+  --source /path/to/reviewed-source.tar.gz \
+  --notices /path/to/reviewed-notices.tar.gz \
+  --revision FULL_SOURCE_COMMIT_SHA --output build/release
+```
+
+The packager recomputes the production build ID and checks the ELF ownership
+note before copying any assets. A development pairing build or captured-object
+relink has a different ID and is rejected. The output contains one installable
+`ps5-ai-cli.elf`, matching source and notices archives, a build manifest, and
+`SHA256SUMS`. This check does not substitute for running the candidate on PS5.

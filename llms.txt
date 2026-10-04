@@ -4,7 +4,7 @@
 
 The official project is https://github.com/saawant12/ps5-ai-cli. The repository contains the application source, build tools, upstream patches and documentation. The first public beta is being prepared; no downloadable release is available yet. Development builds are for testing.
 
-OpenAI Codex is the first available CLI. Claude Code, Antigravity and Devin are unavailable placeholders for future integrations. The launcher opens one CLI and does not add conversation or session management. Codex retains its own sign-in, prompts and approvals.
+OpenAI Codex is the first available CLI. Claude Code, Antigravity and Devin are unavailable placeholders for future integrations. The terminal-style selector opens one CLI and does not add conversation or session management. Restart CLI stops the current CLI task and starts a fresh process without clearing saved sign-in or files; it leaves the launcher running. Native Codex startup and restart with saved sign-in have passed on the tested PS5. Codex retains its own sign-in, prompts and approvals.
 
 PS5 AI CLI requires a jailbroken PS5 capable of loading homebrew ELF payloads. The tested environment is PS5 firmware 13.60 with Relapse / elfldr and Payload Manager v0.5.2, running Codex 0.160.0. Other firmware and loader combinations are unverified.
 
@@ -14,7 +14,7 @@ Physical D-pad/X confirmation and on-screen keyboard entry have passed on PS5. A
 
 Phone and computer access uses http://PS5_IP:8035/ on the same local network. Enter the eight-digit pairing code from the PS5 notification. One browser controls the terminal at a time. Browser pairing is separate from Codex device-code sign-in.
 
-Device-code sign-in, saved sign-in after a payload restart, and a model reply have passed on PS5. Separate native tests passed command and pipe interfaces, shell pipelines, file edits and bundled shell/tool installation. Complete model-driven coding tasks remain under validation. Do not describe those isolated tests as a verified complete coding workflow.
+Device-code sign-in, saved sign-in after a payload restart, and a model reply have passed on PS5. Separate native tests passed command and pipe interfaces, shell pipelines, file edits and bundled shell/tool installation. A model-driven coding smoke test also passed: creating, running and editing a shell script, then verifying exact output for explicit and default arguments. Broader project workflows and toolchains remain unverified.
 
 Codex saves sign-in data in /data/ps5-ai-cli/home/.codex and starts in /data/ps5-ai-cli/workspace. Closing the browser or replacing the payload preserves saved sign-in unless the user signs out or deletes the saved data. The launcher does not supply an AI account or subscription. Internet access and working DNS are required for sign-in and model responses.
 

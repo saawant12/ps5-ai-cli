@@ -103,9 +103,9 @@ int ps5_sdk_elf_valid(const uint8_t *image, size_t length) {
             const uint8_t *r = image + offset + pos;
             uint64_t info = le(r + 8, 8), type = info & 0xffffffff;
             if (!type) continue;
-            /* The loader applies RELATIVE; SDK startup resolves GLOB_DAT and
-             * JUMP_SLOT imports from its own dynamic symbol table. */
-            if ((type != 8 && type != 6 && type != 7) ||
+            /* The loader applies RELATIVE; SDK startup resolves absolute
+             * 64-bit, GLOB_DAT and JUMP_SLOT symbol relocations. */
+            if ((type != 8 && type != 1 && type != 6 && type != 7) ||
                 (type == 8 ? info >> 32 != 0 : info >> 32 >= symbol_count) ||
                 !mapped(image, phoff, phnum, le(r, 8), 8, 0)) return 0;
         }

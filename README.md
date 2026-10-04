@@ -1,9 +1,11 @@
+<img src="web/icon.svg" width="80" height="80" alt="PS5 AI CLI terminal icon">
+
 # PS5 AI CLI
 
 ### Open Codex on your PS5. Use the CLI you already know.
 
 PS5 AI CLI brings the native [OpenAI Codex CLI](https://github.com/openai/codex)
-to jailbroken PlayStation 5 consoles. Open the home-screen icon, choose Codex,
+to jailbroken PlayStation 5 consoles. Open the home-screen icon, choose Codex from the terminal-style list,
 and use its own terminal interface. Enter text with your controller or connect
 from a phone or computer on the same network.
 
@@ -11,6 +13,10 @@ from a phone or computer on the same network.
 [Setup and controls](#getting-started) ·
 [Report a problem](https://github.com/saawant12/ps5-ai-cli/issues) ·
 [llms.txt](llms.txt)
+
+![Codex answering a greeting in PS5 AI CLI on the PS5 screen](docs/images/codex-on-ps5.png)
+
+*Captured directly on PS5. The screenshot shows the native Codex terminal.*
 
 ## What you can do
 
@@ -20,6 +26,8 @@ from a phone or computer on the same network.
   on-screen keyboard lets you enter text.
 - **Use another screen.** Pair a phone or computer to access the same running
   CLI through your browser.
+- **Restart a stuck CLI.** Use **Restart CLI** to open a fresh Codex process
+  while keeping the launcher, saved sign-in and files.
 - **Stay signed in.** Codex keeps its sign-in on the console across payload
   restarts, as long as you keep its saved data.
 - **Read comfortably on the TV.** A bundled monospace font keeps terminal text
@@ -37,8 +45,12 @@ yet.** You can [build the development version](docs/DEVELOPMENT.md) to help test
 On the tested PS5, the home-screen shortcut, device-code sign-in, saved sign-in
 after a payload restart, a model reply, physical X confirmation and D-pad/X text
 entry have passed. Separate native tests also passed shell commands, pipelines,
-file edits and bundled tool installation. A complete coding task driven by the
-model is still being validated.
+file edits and bundled tool installation. A model-driven coding smoke test also
+passed: creating a shell script, running it, editing it, and checking its outputs
+on the console. The updated build also passed native Codex
+startup and CLI restart with saved sign-in. The terminal selector, Backspace
+and icon migration pass local checks; their updated presentation still needs
+confirmation on the TV.
 
 Testing currently covers **PS5 firmware 13.60**, **Relapse / elfldr** and
 **Payload Manager v0.5.2**, with **Codex 0.160.0**. Other firmware and loader
@@ -86,6 +98,14 @@ can control the terminal at a time; use **Disconnect** before switching screens.
 | Terminal toolbar | Send Esc, Tab, arrow keys or Ctrl+C |
 | Phone touch / computer mouse | Select visible controls |
 | Computer keyboard | Type into the terminal and use keyboard shortcuts |
+| **Focus prompt** | Return from terminal history to the live prompt and focus typing |
+
+The **Backspace** key edits text in the keyboard. When that text box is empty,
+it deletes the previous character in the CLI instead.
+
+If the browser shows **Disconnected**, select **Reconnect** before typing.
+Text drafted in **Keyboard** stays there while disconnected; its send controls
+become available again after reconnecting.
 
 Physical D-pad/X and on-screen keyboard entry have been confirmed on PS5.
 Directly connected PS5 keyboards and additional controller button shortcuts
@@ -98,10 +118,31 @@ browser or replacing the payload keeps that data. Signing out or deleting the
 saved data means you will need to sign in again. The default working folder is
 `/data/ps5-ai-cli/workspace`.
 
-To replace a development build, finish the current task, stop the identifiable
-**PS5 AI CLI** process in Payload Manager, install the replacement ELF, and run
-it once. Keep the saved data and leave other payloads running. Launching the ELF
-again while the existing instance is running does not restart it.
+**Restart CLI** stops the current CLI task and launches Codex again. Use it
+when Codex hangs or exits; it does not sign you out or clear your files.
+
+To update, finish the current task and use Codex's `/quit` command to exit the
+CLI. Stop the identifiable **PS5 AI CLI** gateway in Payload Manager, install
+the replacement ELF, and run it once. Keep the saved data and leave other
+payloads running. Launching the ELF again while the existing instance is
+running does not restart it. If the CLI is hung, use **Restart CLI** first, then
+exit it before replacing the payload. Payload Manager force-stops processes;
+stopping the gateway alone may leave an active CLI child running.
+
+Keep the previous ELF if you may need to roll back. A compatible older build
+can be installed using the same steps; the app replaces only its own runtime
+image and keeps your saved data. This is the first public beta, so there is no
+earlier public beta to recommend as a rollback target.
+
+### Uninstalling
+
+Exit Codex with `/quit`, stop the PS5 AI CLI gateway, and remove its payload
+from Payload Manager, including any autoload entry you added. Delete the
+**PS5 AI CLI** home-screen shortcut using the PS5's app controls. Retaining
+`/data/ps5-ai-cli` keeps your sign-in and workspace for a later reinstall;
+the next payload launch can recreate a deleted shortcut. Only delete that
+data folder if you also want to erase the saved sign-in and all workspace files.
+There is no automatic data-removal command in this beta.
 
 PS5 AI CLI has its own shortcut, port and saved-data folder, separate from Orbit
 Store. You do not need to remove Orbit to use it.
@@ -122,8 +163,9 @@ Store. You do not need to remove Orbit to use it.
 - **“Failed to request device code”:** check the console's internet connection
   and DNS resolver before retrying. A loopback DNS address requires a running
   local resolver.
-- **The terminal disconnected:** choose **Reconnect** if the payload is still
-  running. Otherwise start it again through Payload Manager.
+- **The terminal disconnected:** choose **Reconnect** to attach to a running
+  CLI, or **Restart CLI** if Codex has exited or stopped responding. If the whole
+  payload is unavailable, start it through Payload Manager.
 
 For a bug report, include the app version or build ID, firmware, payload manager
 and steps to reproduce in [Issues](https://github.com/saawant12/ps5-ai-cli/issues).
@@ -131,10 +173,11 @@ Leave out pairing codes, sign-in codes, credentials and private prompt content.
 
 ## Current limits
 
-Codex is the only available CLI. Complete coding workflows are still under
-validation. Commands use a bundled native shell and file tools; interactive
+Codex is the only available CLI. A small shell coding task has passed; broader
+project workflows remain unverified. Commands use a bundled native shell and file tools; interactive
 child programs that require a kernel PTY are unsupported. Ordinary Linux or
-FreeBSD executables cannot be used as PS5 tools.
+FreeBSD executables cannot be used as PS5 tools. Git, Node.js, Python and general
+package managers are not bundled.
 
 The launcher and terminal assets load locally. Codex sign-in and model responses
 need internet access. The launcher does not provide an AI account or subscription.

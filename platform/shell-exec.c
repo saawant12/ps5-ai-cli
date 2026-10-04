@@ -31,12 +31,25 @@ int ps5_shell_execve(const char *path, char *const argv[], char *const envp[]) {
 #ifdef PS5_TOOL_TRACE
     fprintf(stderr, "proxy %ld loading %s\n", (long)getpid(), path);
 #endif
+    /* This process now owns the loader's traced child and its final wait.
+     * Do not run the caller shell's SIGCHLD handler during that handshake.
+     * Restore it on failure so command lookup and script fallback still work. */
+    struct sigaction saved_chld, default_chld;
+    memset(&default_chld, 0, sizeof(default_chld));
+    default_chld.sa_handler = SIG_DFL;
+    sigemptyset(&default_chld.sa_mask);
+    if (sigaction(SIGCHLD, &default_chld, &saved_chld)) return -1;
     pid_t child = ps5_spawn_sdk(path, (char **)argv, (char **)envp, cwd,
                                0, 1, 2, fds, count, 0);
 #ifdef PS5_TOOL_TRACE
     fprintf(stderr, "proxy %ld child %ld error %d\n", (long)getpid(), (long)child, child < 0 ? errno : 0);
 #endif
-    if (child < 0) return -1;
+    if (child < 0) {
+        int error = errno;
+        sigaction(SIGCHLD, &saved_chld, NULL);
+        errno = error;
+        return -1;
+    }
     /* The loaded child owns its stdio. Closing our copies matters for pipelines
      * such as a writer | head: the writer must be able to observe EPIPE. */
     close(0); close(1);
@@ -44,7 +57,7 @@ int ps5_shell_execve(const char *path, char *const argv[], char *const envp[]) {
     close(2);
 #endif
     for (size_t i = 0; i < count; i++) close(fds[i]);
-    int status;
+    int status = 0;
     pid_t waited;
     do { waited = waitpid(child, &status, 0); } while (waited < 0 && errno == EINTR);
 #ifdef PS5_TOOL_TRACE

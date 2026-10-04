@@ -28,7 +28,9 @@ CC=/work/tools/ps5-autoconf-cc.sh CC_FOR_BUILD=clang CFLAGS='-O2 -DJOBS=0' \
 # Make's ordinary host generator would embed Linux signal numbers.
 mkdir -p src
 python3 /work/tools/dash-signames.py
-make -j2 LDFLAGS="$links"
+# The proxy/loader objects are linked through LDFLAGS, so Automake would not
+# otherwise relink Dash when those objects change.
+make -j2 LDFLAGS="$links" EXTRA_dash_DEPENDENCIES="${objects[*]}"
 cp src/dash /work/build/shell/sh.elf
 llvm-strip --strip-all /work/build/shell/sh.elf
 python3 /work/tools/payload.py /work/build/shell/sh.elf

@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -24,6 +25,13 @@ int main(int argc, char **argv) {
     if (sentinel <= 2) return 11;
     int terminal = ps5_terminal_attach(100, 30);
     if (terminal <= 2 || ps5_terminal_wait() || fcntl(sentinel, F_GETFD) < 0) return 12;
+    int control[2] = {-1, -1};
+    if (argc > 1 && !strcmp(argv[1], "child-control")) {
+        struct winsize initial = {.ws_col = 100, .ws_row = 30};
+        if (socketpair(AF_UNIX, SOCK_DGRAM, 0, control) ||
+            send(control[0], &initial, sizeof(initial), 0) != sizeof(initial) ||
+            ps5_terminal_adopt(control[1]) || !(fcntl(control[1], F_GETFD) & FD_CLOEXEC)) return 21;
+    }
     if (!__wrap_isatty(0) || !__wrap_isatty(1) || __wrap_isatty(sentinel)) return 13;
     char buffer[4];
     if (write(terminal, "in", 2) != 2 || read(0, buffer, 2) != 2 || memcmp(buffer, "in", 2)) return 14;
@@ -33,6 +41,11 @@ int main(int argc, char **argv) {
     attributes.c_lflag |= ICANON;
     if (__wrap_tcsetattr(0, TCSANOW, &attributes) != -1 || errno != EOPNOTSUPP) return 17;
     ps5_terminal_resize(90, 40);
+    if (control[0] >= 0) {
+        struct winsize latest = {.ws_col = 90, .ws_row = 40};
+        ps5_terminal_resize(80, 24);
+        if (send(control[0], &latest, sizeof(latest), 0) != sizeof(latest)) return 22;
+    }
     struct winsize window;
     if (__wrap_ioctl(1, TIOCGWINSZ, &window) || window.ws_col != 90 || window.ws_row != 40) return 18;
     if (ps5_terminal_attach(90, 40) != -1 || errno != EBUSY) return 19;
@@ -40,5 +53,6 @@ int main(int argc, char **argv) {
     terminal = ps5_terminal_attach(80, 24);
     if (terminal < 0 || write(terminal, "ok", 2) != 2 || read(0, buffer, 2) != 2 || memcmp(buffer, "ok", 2)) return 20;
     close(terminal); close(sentinel);
+    if (control[0] >= 0) { close(control[0]); close(control[1]); }
     return 0;
 }
